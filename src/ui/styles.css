@@ -1822,3 +1822,55 @@ details.more-inline summary {
     width: 100%;
   }
 }
+
+/* «Воздух» в «Приказах»: отступы растут с высотой экрана (768px — плотно, 1080px и выше — просторно) */
+.panel-body.orders {
+  --air: clamp(6px, calc(6px + (100vh - 768px) * 0.045), 22px);
+  padding: var(--air);
+  gap: var(--air);
+}
+.orders .orders-grid,
+.orders .ocol {
+  gap: var(--air);
+}
+.orders .card {
+  padding: calc(var(--air) + 1px) calc(var(--air) + 4px);
+  border-radius: 12px;
+}
+.orders .card-head {
+  margin-bottom: calc(var(--air) * 0.7);
+}
+.orders .advisor {
+  padding: calc(var(--air) - 1px) calc(var(--air) + 4px);
+}
+.orders .fc-rows {
+  gap: calc(var(--air) * 0.45);
+}
+.orders .slider {
+  margin: calc(var(--air) * 0.6) 0;
+}
+.orders .choice {
+  gap: calc(var(--air) * 0.75);
+}
+.orders .chips {
+  gap: calc(var(--air) * 0.75);
+}
+.orders .load {
+  margin-top: calc(var(--air) * 0.75);
+}
+.orders .attack-form {
+  margin-top: var(--air);
+  padding: var(--air) calc(var(--air) + 2px);
+}
+.orders .campaigns {
+  margin-top: var(--air);
+}
+.orders .sci-row2.compact {
+  padding: calc(2px + (var(--air) - 8px) * 0.45) 0;
+}
+.orders .sci-bar {
+  margin: calc(var(--air) * 0.5) 0 calc(var(--air) * 0.3);
+}
+.orders .gline {
+  padding: calc(3px + (var(--air) - 8px) * 0.4) 0;
+}
