@@ -151,3 +151,46 @@ export function Spark({ values, width = 120, height = 28 }: { values: number[]; 
     </svg>
   );
 }
+
+const MOOD = [
+  { color: '#e5534b', label: 'Вражда', curve: -3.2 },
+  { color: '#f0883e', label: 'Неприязнь', curve: -1.6 },
+  { color: '#e3b341', label: 'Нейтрально', curve: 0 },
+  { color: '#8fce5a', label: 'Дружелюбно', curve: 1.8 },
+  { color: '#3fb950', label: 'Дружба', curve: 3.4 },
+];
+
+export function moodLevel(value: number): number {
+  return value <= -50 ? 0 : value <= -15 ? 1 : value < 15 ? 2 : value < 50 ? 3 : 4;
+}
+
+/** Отношение страны к вам — рожица от злой красной до улыбающейся зелёной. */
+export function Mood({ value, size = 18 }: { value: number; size?: number }) {
+  const m = MOOD[moodLevel(value)];
+  const lvl = moodLevel(value);
+  return (
+    <span className="mood" title={`${m.label} (${Math.round(value)})`}>
+      <svg width={size} height={size} viewBox="0 0 20 20" aria-label={m.label}>
+        <circle cx="10" cy="10" r="9" fill={m.color} stroke="rgba(0,0,0,0.35)" strokeWidth="1" />
+        <circle cx="7" cy="8.2" r="1.3" fill="#1b1b1b" />
+        <circle cx="13" cy="8.2" r="1.3" fill="#1b1b1b" />
+        {lvl === 0 && <path d="M4.8 5.2 L8.6 6.6 M15.2 5.2 L11.4 6.6" stroke="#1b1b1b" strokeWidth="1.4" strokeLinecap="round" />}
+        <path d={`M6 13.4 Q10 ${13.4 + m.curve} 14 13.4`} fill="none" stroke="#1b1b1b" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    </span>
+  );
+}
+
+/** Честь — пять звёзд. */
+export function Honor({ value }: { value: number }) {
+  const full = Math.round(value / 20);
+  return (
+    <span className="honor" title={`Честь: ${Math.round(value)} из 100`}>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <span key={i} className={i < full ? 'on' : ''}>
+          ★
+        </span>
+      ))}
+    </span>
+  );
+}

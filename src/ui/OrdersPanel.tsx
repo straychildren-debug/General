@@ -7,11 +7,14 @@ import type { General, GeneralTask } from '../core/types';
 import { autoTasks, pickAttacker } from './autoGenerals';
 import { ForecastCard } from './EconomyPanel';
 import { ScienceRows } from './SciencePanel';
-import { Card, Slider, Swatch, type PanelProps } from './common';
+import { Card, Mood, Slider, Swatch, type PanelProps } from './common';
+import { rel, treatyBetween } from '../core/diplomacy';
 
 interface Props extends PanelProps {
   target: number | null;
   onTarget: (id: number | null) => void;
+  onDiplomacy: (id: number) => void;
+  onTab: (tab: string) => void;
 }
 
 /** Кнопки 25% / 50% / 100% от максимума и ползунок для точного числа. */
@@ -59,7 +62,7 @@ function chanceWord(p: number): { text: string; tone: 'pos' | 'warn' | 'neg' } {
   return { text: 'низкий', tone: 'neg' };
 }
 
-export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, target, onTarget }: Props) {
+export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, target, onTarget, onDiplomacy, onTab }: Props) {
   const pop = me.population;
   const truce = game.settings.truceYears ?? 0;
   const inTruce = game.year <= truce;
@@ -120,8 +123,17 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
 
   // ── Советник: одна главная подсказка на ход ──
   const advice = (() => {
+    const offers = (game.offers ?? []).filter((d) => d.to === me.id && d.year === game.year && !draft.diplomacy?.accept?.includes(d.id));
+    const ult = offers.find((d) => d.ultimatum);
+    if (ult) return { tone: 'neg', text: `Государство ${game.countries[ult.from].name} требует дань — иначе нападёт. Решите во вкладке «Дипломатия».`, tab: 'diplomacy' };
     if (fc.unfed > 0) return { tone: 'neg', text: 'Будет голод: денег не хватит на зерно. Наймите меньше людей.' };
     if (fc.unpaid > 0) return { tone: 'neg', text: 'Казна не потянет жалованье — часть солдат разбежится. Наймите меньше.' };
+    if (offers.length)
+      return {
+        tone: 'ok',
+        text: `Государство ${game.countries[offers[0].from].name} предлагает ${offers[0].kind === 'alliance' ? 'совместный поход' : 'мир'}${offers.length > 1 ? ' (и ещё ' + (offers.length - 1) + ')' : ''} — загляните в «Дипломатию».`,
+        tab: 'diplomacy',
+      };
     if (generals.length === 0 && draft.buyOffers.length === 0)
       return { tone: 'warn', text: 'Без генерала армия не может наступать и плохо обороняется — купите генерала.' };
     if (campaigns.length > 0 && !generals.some((g) => taskOf(g).type === 'defend'))
@@ -151,6 +163,11 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
     <div className="panel-body orders">
       <div className={'advisor ' + advice.tone}>
         <b>Советник:</b> {advice.text}
+        {'tab' in advice && advice.tab && (
+          <button className="link" onClick={() => onTab(advice.tab as string)}>
+            {' '}открыть →
+          </button>
+        )}
       </div>
       <div className="orders-grid">
       <div className="ocol">
@@ -178,8 +195,9 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
                 const w = words.get(n)!;
                 return (
                   <button key={n} className={'chip ' + (tgt === n ? 'on' : '')} onClick={() => onTarget(tgt === n ? null : n)}>
-                    <Swatch color={game.countries[n].color} />
+                    <Mood value={rel(game, n, me.id)} size={16} />
                     {game.countries[n].name} · <span className={w.tone}>{w.text}</span>
+                    {treatyBetween(game, me.id, n) && <span className="muted"> · мир</span>}
                   </button>
                 );
               })}
@@ -202,8 +220,14 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
                         </span>
                       )}
                     </div>
+                    {treatyBetween(game, me.id, tgt) && (
+                      <div className="warn-box">У нас договор с этой страной — нападение будет предательством: честь упадёт, и с вами долго никто не будет договариваться.</div>
+                    )}
                     <button className="btn primary wide" onClick={send} disabled={army <= 0}>
-                      Отправить в поход на {game.countries[tgt].name}
+                      {treatyBetween(game, me.id, tgt) ? 'Нарушить договор и напасть' : `Отправить в поход на ${game.countries[tgt].name}`}
+                    </button>
+                    <button className="link dip-link" onClick={() => onDiplomacy(tgt)}>
+                      или договориться с государством {game.countries[tgt].name} →
                     </button>
                   </>
                 )}

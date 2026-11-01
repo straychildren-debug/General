@@ -1874,3 +1874,75 @@ details.more-inline summary {
 .orders .gline {
   padding: calc(3px + (var(--air) - 8px) * 0.4) 0;
 }
+.mood {
+  display: inline-flex;
+  vertical-align: -4px;
+  margin: 0 3px;
+}
+.honor span {
+  color: #3a4657;
+  font-size: 15px;
+  letter-spacing: 1px;
+}
+.honor span.on {
+  color: var(--accent-2);
+}
+
+/* Дипломатия */
+.dlist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  background: #121920;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.dline.ultimatum {
+  border-color: rgba(255, 106, 92, 0.55);
+}
+.dline.new {
+  border-color: rgba(230, 180, 80, 0.5);
+}
+.tag.bad {
+  background: rgba(255, 106, 92, 0.16);
+  color: #ffbcb4;
+}
+.dip-form {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.answer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13.5px;
+}
+.answer.good {
+  background: rgba(95, 211, 122, 0.1);
+  border: 1px solid rgba(95, 211, 122, 0.4);
+}
+.answer.bad {
+  background: rgba(255, 106, 92, 0.08);
+  border: 1px solid rgba(255, 106, 92, 0.35);
+}
+.dip-link {
+  margin-top: 6px;
+  align-self: center;
+  font-size: 13px;
+}
+.attack-form {
+  display: flex;
+  flex-direction: column;
+}

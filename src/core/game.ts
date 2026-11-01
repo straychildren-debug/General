@@ -144,6 +144,11 @@ export function createGame(settings: GameSettings): GameState {
     chronicle: { initialOwner: map.owner.slice(), changes: [] },
     over: false,
     winner: null,
+    treaties: [],
+    offers: [],
+    relations: new Array(n * n).fill(0),
+    honor: new Array(n).fill(100),
+    nextDealId: 1,
   };
 
   // Одинаковый стартовый генерал у всех

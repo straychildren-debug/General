@@ -3,7 +3,8 @@ import { fmtShort, pct } from '../core/format';
 import { areNeighbors, type Geo } from '../core/geo';
 import { battleVisible, estimate } from '../core/intel';
 import type { GameState } from '../core/types';
-import { Card, Row, Swatch } from './common';
+import { Card, Mood, Row, Swatch } from './common';
+import { rel, treatyBetween } from '../core/diplomacy';
 import { BattleLine } from './NewsPanel';
 
 interface Props {
@@ -101,9 +102,10 @@ export function WorldPanel({ game, geo, viewer, selected, onSelect }: Props) {
                   onClick={() => onSelect(c.id === selected ? null : c.id)}
                 >
                   <td>
-                    <Swatch color={c.color} /> {c.name}
+                    {viewer != null && c.id !== viewer ? <Mood value={rel(game, c.id, viewer)} size={15} /> : <Swatch color={c.color} />} {c.name}
                     {c.playerName && <span className="tag">{c.playerName}</span>}
                     {nb && <span className="tag nb">сосед</span>}
+                    {viewer != null && treatyBetween(game, viewer, c.id) && <span className="tag">мир</span>}
                   </td>
                   <td>
                     <div className="terr">

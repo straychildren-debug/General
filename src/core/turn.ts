@@ -19,6 +19,7 @@ import {
   studyGain,
   TERRAIN_INFO,
 } from './balance';
+import { ensureDiplomacy, onBetrayal, treatyBetween, yearlyDiplomacy } from './diplomacy';
 import { econOf, settle, staffRoom, starvationDeaths, type Econ } from './econ';
 import { fmt, fmtShort } from './format';
 import { defaultOrders, generateOffers, randomGeneral } from './game';
@@ -60,9 +61,11 @@ function sanitizeTask(t: GeneralTask | undefined): GeneralTask {
 /** Главная функция: обрабатывает один год по приказам всех стран. */
 export function resolveTurn(prev: GameState, ordersIn: Record<number, Orders>): GameState {
   if (prev.over) return prev;
-  const s: GameState = structuredClone(prev);
+  const s: GameState = ensureDiplomacy(structuredClone(prev));
   const rng = new Rng(s.rng);
   const report: YearReport = { year: s.year, battles: [], events: [], eliminated: [], price: 0, supply: 0, demand: 0 };
+  report.events.push(...(s.pendingEvents ?? []));
+  s.pendingEvents = [];
   const alive = s.countries.filter((c) => c.alive);
   const orders = new Map<number, Orders>();
   for (const c of alive) orders.set(c.id, ordersIn[c.id] ?? defaultOrders(c));
@@ -88,6 +91,9 @@ export function resolveTurn(prev: GameState, ordersIn: Record<number, Orders>): 
 
   // 5. Хозяйство: доход, урожай, рынок зерна, жалованье, рост населения
   yearEconomy(s, geo, harvestMult, rng, report);
+
+  // Дипломатия: дань, обязательства союзников, истечение договоров, отношения, честь
+  yearlyDiplomacy(s, report);
 
   // 6. Итоги года
   for (const c of s.countries) {
@@ -218,6 +224,9 @@ function runWar(s: GameState, rng: Rng, geo: Geo, report: YearReport): void {
         continue;
       }
       avail -= send;
+      // Нападение на партнёра по договору — предательство
+      const treaty = treatyBetween(s, c.id, t);
+      if (treaty) onBetrayal(s, report, c.id, t, treaty);
       armies.push({ country: c.id, gen: g, soldiers: send, target: t });
     }
     c.soldiers = avail;

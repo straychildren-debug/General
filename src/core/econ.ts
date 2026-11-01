@@ -125,6 +125,9 @@ export interface Forecast {
   scientistCost: number;
   generalCost: number;
   fortCost: number;
+  dipOnce: number; // разовые платежи по договорам
+  tribIn: number; // дань, которую получим
+  tribOut: number; // дань, которую платим
   spend: number;
   upkeepSoldiers: number;
   upkeepScientists: number;
@@ -161,7 +164,23 @@ export function forecast(state: GameState, geo: Geo, c: Country, o: Orders): For
   }
   let fc = 0;
   for (const nb of new Set(o.buildForts)) fc += fortCost(c.forts[nb] ?? 0, state.cellsPerCountry);
-  const spend = hireCost + generalCost + fc;
+  // Дипломатия: разовые платежи по договорённостям и дань этого года
+  let dipOnce = 0;
+  let tribIn = 0;
+  let tribOut = 0;
+  const newDeals = [...(o.diplomacy?.deals ?? []), ...(state.offers ?? []).filter((d) => o.diplomacy?.accept?.includes(d.id))];
+  for (const d of newDeals) {
+    if (d.payer === c.id) {
+      dipOnce += d.once;
+      tribOut += d.kind === 'peace' ? d.yearly : 0;
+    } else if (d.payer != null && (d.from === c.id || d.to === c.id)) tribIn += d.kind === 'peace' ? d.yearly : 0;
+  }
+  for (const t of state.treaties ?? []) {
+    if (t.start > state.year || t.until < state.year || t.payer == null || !(t.a === c.id || t.b === c.id)) continue;
+    if (t.payer === c.id) tribOut += t.yearly;
+    else tribIn += t.yearly;
+  }
+  const spend = hireCost + generalCost + fc + dipOnce;
   const moneyAfterPurchases = c.money - spend;
 
   const sim: Country = {
@@ -192,7 +211,10 @@ export function forecast(state: GameState, geo: Geo, c: Country, o: Orders): For
     upkeepGenerals: e.upkeepGenerals,
     upkeep: e.upkeep,
     moneyAfterPurchases,
-    moneyEnd: st.money - st.unpaid,
+    moneyEnd: st.money - st.unpaid + tribIn - tribOut,
+    dipOnce,
+    tribIn,
+    tribOut,
     unfed: st.unfed,
     unpaid: st.unpaid,
     harvest: e.harvest,

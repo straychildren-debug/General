@@ -197,9 +197,55 @@ export interface GameState {
   chronicle: { initialOwner: number[]; changes: ChronicleEntry[] };
   over: boolean;
   winner: number | null;
+  // Дипломатия (в старых сохранениях может отсутствовать — см. ensureDiplomacy)
+  treaties: Treaty[];
+  offers: Deal[]; // предложения игрокам-людям на этот год
+  relations: number[]; // n×n, от −100 (вражда) до +100 (дружба)
+  honor: number[]; // честь 0..100; ниже 50 — с вами никто не договаривается
+  nextDealId: number;
+  pendingEvents?: GameEvent[]; // события, случившиеся до обработки года (договоры)
+}
+
+// ───────────── Дипломатия ─────────────
+
+export type DealKind = 'peace' | 'alliance' | 'gift';
+
+/** Предложение договора. Мир с оплатой — это и «откуп» (разово), и «дань» (каждый год). */
+export interface Deal {
+  id: number;
+  from: number; // кто предлагает
+  to: number;
+  kind: DealKind;
+  years: number; // срок мира; для совместного похода — 1
+  payer: number | null; // кто платит
+  once: number; // разовая сумма
+  yearly: number; // ежегодная дань
+  target: number | null; // цель совместного похода
+  ultimatum: boolean; // «плати — или нападём»
+  year: number;
+}
+
+export interface Treaty {
+  id: number;
+  kind: 'peace' | 'alliance';
+  a: number;
+  b: number;
+  start: number;
+  until: number; // действует по этот год включительно
+  payer: number | null;
+  yearly: number;
+  target: number | null;
+  ending: boolean; // расторгнут с предупреждением
+}
+
+export interface DiplomacyOrders {
+  deals: Deal[]; // договорённости этого хода (компьютер уже согласился) и предложения людям
+  accept: number[]; // принятые входящие предложения
+  cancel: number[]; // договоры, расторгнутые с предупреждением
 }
 
 export interface Orders {
+  diplomacy?: DiplomacyOrders;
   taxRate: number;
   sellGrain: number;
   buyGrain: number;

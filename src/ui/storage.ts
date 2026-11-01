@@ -1,3 +1,4 @@
+import { ensureDiplomacy } from '../core/diplomacy';
 import type { GameState } from '../core/types';
 
 const KEY = 'polkovodets.save.v1';
@@ -16,7 +17,7 @@ export function loadGame(): GameState | null {
     const s = localStorage.getItem(KEY);
     if (!s) return null;
     const g = JSON.parse(s) as GameState;
-    return g && g.version === 1 ? g : null;
+    return g && g.version === 1 ? ensureDiplomacy(g) : null;
   } catch {
     return null;
   }

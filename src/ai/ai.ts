@@ -23,6 +23,7 @@ import {
 } from '../core/balance';
 import { econOf, staffRoom } from '../core/econ';
 import { defaultOrders } from '../core/game';
+import { allianceAgainst, rel, treatyBetween } from '../core/diplomacy';
 import { borderDefense, frontFactorGeo, type Geo } from '../core/geo';
 import { battleVisible, estimate, type Intel } from '../core/intel';
 import { hash01, Rng } from '../core/rng';
@@ -173,7 +174,9 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
     const strike = it.soldiers * commit * (1 + 0.1 * it.levels[S_MIL]) * genFactor(it.bestExp) * morale(it.happiness);
     const hostility =
       clamp(0.45 + 0.12 * (attacksBy.get(n) ?? 0) + 0.35 * Math.min(2, grudge.get(n) ?? 0) + 0.3 * leaderF(n), 0.3, 1.3) *
-      ps.caution;
+      ps.caution *
+      (treatyBetween(state, id, n) ? 0.3 : 1) *
+      (1 + Math.max(0, -rel(state, id, n)) / 250);
     threat.set(n, (strike / myDefPer(n)) * hostility * jit());
   }
   const defNeedExcl = (excl: Set<number>) => {
@@ -234,7 +237,8 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
     const outFrac = Math.min(0.4, 0.1 * (attacksBy.get(t) ?? 0)) * sk.opp;
     const jackal = Math.min(3, attackedLastYear.get(t) ?? 0);
     const poolF = Math.max(0.5, 1 - outFrac * 0.6 - 0.08 * jackal * ps.opportunism * sk.opp);
-    const D = (it.soldiers * poolF * frontFactorGeo(geo, id, t) + it.population * 0.002) * tDefPer;
+    const allied = allianceAgainst(state, id, t) ? 0.7 : 1;
+    const D = (it.soldiers * poolF * allied * frontFactorGeo(geo, id, t) + it.population * 0.002) * tDefPer;
     return { t, D, err: it.err };
   });
 
@@ -256,7 +260,15 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
       cells * cellValue * (1 + leaderF(tg.t)) * (1 + 0.3 * Math.min(2, grudge.get(tg.t) ?? 0)) + elimBonus;
     // Ожидаемые потери противника: при нашей победе он теряет больше, при поражении — меньше
     const damage = it.soldiers * (p * lw.lose + (1 - p) * lw.win) * soldierValue * damageW;
-    return { p, ev: (p * gain + damage - lossCost) * ps.aggression * boldness * jit() };
+    // Дипломатия: враждебных бьём охотнее, друзей — неохотно; предательство дорого стоит,
+    // обещанный союзнику поход надо выполнить
+    const r = rel(state, id, tg.t);
+    const relF = 1 + Math.max(0, -r) / 200 - Math.max(0, r) / 300;
+    const treaty = treatyBetween(state, id, tg.t);
+    // В концовке, когда держав мало, честь значит меньше — победа важнее
+    const betrayCost = treaty ? incomeNow * (ps.opportunism >= 1.5 ? 1.5 : ps.aggression >= 1.3 ? 2.5 : 6) * (1 - 0.7 * endgame) : 0;
+    const promise = allianceAgainst(state, id, tg.t) && p >= 0.3 ? incomeNow * 0.5 : 0;
+    return { p, ev: ((p * gain + damage) * relF - lossCost - betrayCost + promise) * ps.aggression * boldness * jit() };
   };
 
   /** Минимальная армия, побеждающая с вероятностью ≥ thr, или -1. */

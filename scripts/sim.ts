@@ -1,9 +1,8 @@
 // Прогон партии «все компьютеры» для проверки баланса: npm run sim -- [seed] [countries] [years] [difficulty]
-import { allAiOrders } from '../src/ai/ai';
+import { advanceYear } from '../src/ai/year';
 import { createGame, DEFAULT_SETTINGS } from '../src/core/game';
 import { econOf } from '../src/core/econ';
 import { computeGeo } from '../src/core/geo';
-import { resolveTurn } from '../src/core/turn';
 import type { Difficulty } from '../src/core/types';
 
 const [seedArg, nArg, yearsArg, diffArg] = process.argv.slice(2);
@@ -27,9 +26,7 @@ const avg = (f: (c: (typeof s.countries)[number]) => number) => {
 };
 for (let y = 0; y < years && !s.over; y++) {
   const t = Date.now();
-  const geo = computeGeo(s);
-  const orders = allAiOrders(s, geo);
-  s = resolveTurn(s, orders);
+  s = advanceYear(s, {});
   turnMs += Date.now() - t;
   const rep = s.reports[s.reports.length - 1];
   battles += rep.battles.length;

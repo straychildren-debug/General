@@ -191,7 +191,10 @@ export function ForecastCard({ me, fc, compact }: { me: PanelProps['me']; fc: Pa
       <Row label="Жалованье солдатам" value={fmtSigned(-fc.upkeepSoldiers)} tone="neg" />
       <Row label="Жалованье учёным" value={fmtSigned(-fc.upkeepScientists)} tone="neg" />
       <Row label="Генералы" value={fmtSigned(-fc.upkeepGenerals)} tone="neg" />
-      {fc.spend > 0 && <Row label="Найм и покупки" value={fmtSigned(-fc.spend)} tone="neg" />}
+      {fc.tribIn > 0 && <Row label="Дань нам" value={fmtSigned(fc.tribIn)} tone="pos" />}
+      {fc.tribOut > 0 && <Row label="Дань, которую платим" value={fmtSigned(-fc.tribOut)} tone="neg" />}
+      {fc.dipOnce > 0 && <Row label="Платежи по договорам" value={fmtSigned(-fc.dipOnce)} tone="neg" />}
+      {fc.spend - fc.dipOnce > 0 && <Row label="Найм и покупки" value={fmtSigned(-(fc.spend - fc.dipOnce))} tone="neg" />}
     </>
   );
   return (

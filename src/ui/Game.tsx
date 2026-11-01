@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { allAiOrders } from '../ai/ai';
+import { advanceYear } from '../ai/year';
 import { forecast } from '../core/econ';
 import { fmtShort, fmtSigned, pct } from '../core/format';
 import { defaultOrders } from '../core/game';
 import { computeGeo } from '../core/geo';
 import { battleVisible } from '../core/intel';
-import { resolveTurn } from '../core/turn';
 import type { GameState, Orders } from '../core/types';
 import { ArmyPanel } from './ArmyPanel';
 import { Seg, Swatch } from './common';
 import { EconomyPanel } from './EconomyPanel';
 import { OrdersPanel } from './OrdersPanel';
+import { DiplomacyPanel } from './DiplomacyPanel';
 import { autoTasks } from './autoGenerals';
 import { attackArrow, centroids, ownerAtYear } from './mapGeometry';
 import { MapView, type Arrow } from './MapView';
@@ -19,7 +19,7 @@ import { SciencePanel } from './SciencePanel';
 import { saveGame } from './storage';
 import { WorldPanel } from './WorldPanel';
 
-type Tab = 'orders' | 'world' | 'news' | 'details';
+type Tab = 'orders' | 'diplomacy' | 'world' | 'news' | 'details';
 type Detail = 'economy' | 'science' | 'army';
 
 function makeDrafts(g: GameState): Record<number, Orders> {
@@ -51,6 +51,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
   const [detail, setDetail] = useState<Detail>('economy');
   const [selected, setSelected] = useState<number | null>(null);
   const [attackTarget, setAttackTarget] = useState<number | null>(null);
+  const [dipTarget, setDipTarget] = useState<number | null>(null);
   const [helpHidden, setHelpHidden] = useState(() => {
     try {
       return localStorage.getItem('polkovodets.help') === 'hidden';
@@ -130,9 +131,9 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
     }
     setBusy(true);
     setTimeout(() => {
-      const orders = allAiOrders(game, geo);
-      for (const id of humans) orders[id] = drafts[id] ?? defaultOrders(game.countries[id]);
-      const next = resolveTurn(game, orders);
+      const human: Record<number, Orders> = {};
+      for (const id of humans) human[id] = drafts[id] ?? defaultOrders(game.countries[id]);
+      const next = advanceYear(game, human);
       const nextHumans = next.countries.filter((c) => c.alive && c.controller === 'human');
       setGame(next);
       setDrafts(makeDrafts(next));
@@ -180,6 +181,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
   const tabs: { id: Tab; label: string }[] = viewer != null
     ? [
         { id: 'orders', label: 'Приказы' },
+        { id: 'diplomacy', label: 'Дипломатия' },
         { id: 'world', label: 'Мир' },
         { id: 'news', label: 'События' },
         { id: 'details', label: 'Подробно' },
@@ -333,7 +335,29 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
                 </button>
               </div>
             )}
-            {activeTab === 'orders' && panelProps && <OrdersPanel {...panelProps} target={attackTarget} onTarget={onTarget} />}
+            {activeTab === 'orders' && panelProps && (
+              <OrdersPanel
+                {...panelProps}
+                target={attackTarget}
+                onTarget={onTarget}
+                onDiplomacy={(id) => {
+                  setDipTarget(id);
+                  setSelected(id);
+                  setTab('diplomacy');
+                }}
+                onTab={(t) => setTab(t as Tab)}
+              />
+            )}
+            {activeTab === 'diplomacy' && panelProps && (
+              <DiplomacyPanel
+                {...panelProps}
+                target={dipTarget}
+                onTarget={(id) => {
+                  setDipTarget(id);
+                  setSelected(id);
+                }}
+              />
+            )}
             {activeTab === 'details' && panelProps && (
               <>
                 <div className="detail-switch">
