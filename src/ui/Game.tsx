@@ -8,8 +8,10 @@ import { battleVisible } from '../core/intel';
 import { resolveTurn } from '../core/turn';
 import type { GameState, Orders } from '../core/types';
 import { ArmyPanel } from './ArmyPanel';
-import { Swatch } from './common';
+import { Seg, Swatch } from './common';
 import { EconomyPanel } from './EconomyPanel';
+import { OrdersPanel } from './OrdersPanel';
+import { autoTasks } from './autoGenerals';
 import { attackArrow, centroids, ownerAtYear } from './mapGeometry';
 import { MapView, type Arrow } from './MapView';
 import { NewsPanel, YearView } from './NewsPanel';
@@ -17,11 +19,18 @@ import { SciencePanel } from './SciencePanel';
 import { saveGame } from './storage';
 import { WorldPanel } from './WorldPanel';
 
-type Tab = 'economy' | 'science' | 'army' | 'world' | 'news';
+type Tab = 'orders' | 'world' | 'news' | 'details';
+type Detail = 'economy' | 'science' | 'army';
 
 function makeDrafts(g: GameState): Record<number, Orders> {
   const res: Record<number, Orders> = {};
-  for (const c of g.countries) if (c.alive && c.controller === 'human') res[c.id] = defaultOrders(c);
+  for (const c of g.countries) {
+    if (!c.alive || c.controller !== 'human') continue;
+    const o = defaultOrders(c);
+    // Генералы назначаются сами: лучший — в оборону, остальные учатся
+    o.tasks = autoTasks(c, o.tasks);
+    res[c.id] = o;
+  }
   return res;
 }
 
@@ -38,7 +47,8 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
   const [drafts, setDrafts] = useState<Record<number, Orders>>(() => makeDrafts(initial));
   const [handoff, setHandoff] = useState(humans.length > 1);
   const [showReport, setShowReport] = useState(false);
-  const [tab, setTab] = useState<Tab>(viewer != null ? 'economy' : 'world');
+  const [tab, setTab] = useState<Tab>(viewer != null ? 'orders' : 'world');
+  const [detail, setDetail] = useState<Detail>('economy');
   const [selected, setSelected] = useState<number | null>(null);
   const [attackTarget, setAttackTarget] = useState<number | null>(null);
   const [helpHidden, setHelpHidden] = useState(() => {
@@ -156,10 +166,10 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
   const onSelect = (id: number | null) => {
     setSelected(id);
     if (id == null) return;
-    if (viewer != null && id === viewer) setTab('economy');
+    if (viewer != null && id === viewer) setTab('orders');
     else if (viewer != null && myNbs.includes(id) && game.countries[id].alive) {
       setAttackTarget(id);
-      setTab('army');
+      setTab('orders');
     } else setTab('world');
   };
   const onTarget = (id: number | null) => {
@@ -169,11 +179,10 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
 
   const tabs: { id: Tab; label: string }[] = viewer != null
     ? [
-        { id: 'economy', label: 'Хозяйство' },
-        { id: 'science', label: 'Наука' },
-        { id: 'army', label: 'Армия' },
+        { id: 'orders', label: 'Приказы' },
         { id: 'world', label: 'Мир' },
         { id: 'news', label: 'События' },
+        { id: 'details', label: 'Подробно' },
       ]
     : [
         { id: 'world', label: 'Мир' },
@@ -208,7 +217,6 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
             <Stat label="Население" value={fmtShort(me.population)} sub={fmtSigned(fc.popEnd - me.population) + ' за год'} subTone={fc.popEnd >= me.population ? 'pos' : 'neg'} />
 
             <Stat label="Солдаты" value={fmtShort(me.soldiers)} />
-            <Stat label="Учёные" value={fmtShort(me.scientists)} />
 
             <Stat label="Земля" value={pct(me.cells / game.map.landCells, 1)} />
           </div>
@@ -304,17 +312,10 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
               <div className="howto">
                 <b>Как играть</b>
                 <ol>
+                  <li>Во вкладке «Приказы» выберите, сколько нанять солдат и учёных, и главные науки.</li>
+                  <li>Чтобы напасть — щёлкните по соседу на карте и нажмите «Отправить в поход».</li>
                   <li>
-                    <b>Хозяйство</b> — наймите солдат и учёных ползунками. Деньги платят крестьяне.
-                  </li>
-                  <li>
-                    <b>Наука</b> — распределите учёных по направлениям.
-                  </li>
-                  <li>
-                    <b>Напасть</b> — щёлкните по соседу на карте, выберите число солдат и «Отправить в поход».
-                  </li>
-                  <li>
-                    Нажмите <b>«Завершить год»</b> и прочитайте итоги.
+                    Нажмите <b>«Завершить год»</b> и прочитайте итоги. Советник подскажет, что делать.
                   </li>
                 </ol>
                 <button
@@ -332,9 +333,25 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
                 </button>
               </div>
             )}
-            {activeTab === 'economy' && panelProps && <EconomyPanel {...panelProps} />}
-            {activeTab === 'science' && panelProps && <SciencePanel {...panelProps} />}
-            {activeTab === 'army' && panelProps && <ArmyPanel {...panelProps} target={attackTarget} onTarget={onTarget} />}
+            {activeTab === 'orders' && panelProps && <OrdersPanel {...panelProps} target={attackTarget} onTarget={onTarget} />}
+            {activeTab === 'details' && panelProps && (
+              <>
+                <div className="detail-switch">
+                  <Seg<Detail>
+                    value={detail}
+                    onChange={setDetail}
+                    options={[
+                      { value: 'economy', label: 'Хозяйство' },
+                      { value: 'science', label: 'Наука' },
+                      { value: 'army', label: 'Армия' },
+                    ]}
+                  />
+                </div>
+                {detail === 'economy' && <EconomyPanel {...panelProps} />}
+                {detail === 'science' && <SciencePanel {...panelProps} />}
+                {detail === 'army' && <ArmyPanel {...panelProps} target={attackTarget} onTarget={onTarget} />}
+              </>
+            )}
             {activeTab === 'world' && <WorldPanel game={game} geo={geo} viewer={viewer} selected={selected} onSelect={onSelect} />}
             {activeTab === 'news' && <NewsPanel game={game} viewer={viewer} nbs={myNbs} />}
           </div>

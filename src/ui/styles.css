@@ -1553,3 +1553,105 @@ details.more-inline summary {
 .tile.neg {
   color: var(--text);
 }
+
+/* Приказы на год */
+.advisor {
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  border: 1px solid;
+}
+.advisor.ok {
+  background: rgba(95, 160, 230, 0.1);
+  border-color: rgba(95, 160, 230, 0.4);
+  color: #cfe0f5;
+}
+.advisor.warn {
+  background: rgba(240, 180, 67, 0.12);
+  border-color: rgba(240, 180, 67, 0.45);
+  color: #f6d38f;
+}
+.advisor.neg {
+  background: rgba(255, 106, 92, 0.12);
+  border-color: rgba(255, 106, 92, 0.45);
+  color: #ffbcb4;
+}
+.choice {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.choice .btn {
+  flex: 1;
+  min-width: 90px;
+  padding: 7px 8px;
+}
+.load {
+  margin-top: 10px;
+}
+.load-text {
+  font-size: 13px;
+  color: var(--muted);
+}
+.load-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: #0f151c;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.load-fill {
+  height: 100%;
+}
+.load-fill.pos {
+  background: var(--good);
+}
+.load-fill.warn {
+  background: var(--warn);
+}
+.load-fill.neg {
+  background: var(--bad);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.chip {
+  background: #121920;
+  border: 1px solid var(--line-2);
+  border-radius: 16px;
+  padding: 5px 12px;
+  font-size: 13px;
+}
+.chip.on {
+  border-color: var(--accent);
+  background: rgba(230, 180, 80, 0.14);
+  color: var(--accent-2);
+}
+.attack-sum {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0 2px;
+  font-size: 14px;
+}
+.gline {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+}
+.gline:last-child {
+  border-bottom: none;
+}
+.hint.center {
+  text-align: center;
+}
+.detail-switch {
+  padding: 12px 12px 0;
+}
