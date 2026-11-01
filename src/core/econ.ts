@@ -48,7 +48,8 @@ export function computeEcon(
     if (g.task.type === 'study') upkeepGenerals += B.studyFee * (cpc / 170);
   }
   const p = c.population;
-  const growth = p < maxPop ? B.growthBase * sciMult(c, S_GROW) * p * (1 - p / maxPop) : -(p - maxPop) * 0.2;
+  // Растём на growthBase в год, пока не упрёмся в предел земли; сверх предела — убыль
+  const growth = p < maxPop ? Math.min(maxPop - p, B.growthBase * sciMult(c, S_GROW) * p) : -(p - maxPop) * 0.2;
   const sciencePts = c.scientists * B.ptsPerSci * sciMult(c, S_SCI);
   const civNeeded = perCiv > 0 ? consumption / perCiv : Infinity;
   return {

@@ -5,7 +5,7 @@ import { fmtShort, years } from '../core/format';
 import { estimate } from '../core/intel';
 import { S_SCI, type General, type GeneralTask } from '../core/types';
 import { autoTasks, pickAttacker } from './autoGenerals';
-import { Card, Swatch, type PanelProps } from './common';
+import { Card, Slider, Swatch, type PanelProps } from './common';
 
 interface Props extends PanelProps {
   target: number | null;
@@ -24,14 +24,33 @@ const SHORT_HINT = [
   'точнее сведения о соседях',
 ];
 
-function Choice({ options, value, onChange }: { options: { label: string; value: number }[]; value: number; onChange: (v: number) => void }) {
+/** Кнопки 25% / 50% / 100% от максимума и ползунок для точного числа. */
+function Amount({ max, value, onChange, unit }: { max: number; value: number; onChange: (v: number) => void; unit: string }) {
+  const v = Math.max(0, Math.min(max, value));
+  const step = max > 100000 ? 1000 : 100;
+  const at = (f: number) => (f === 1 ? max : Math.floor((max * f) / step) * step);
   return (
-    <div className="choice">
-      {options.map((o, k) => (
-        <button key={k} className={'btn ' + (o.value === value ? 'on' : '')} onClick={() => onChange(o.value)} disabled={k > 0 && o.value <= 0}>
-          {o.label}
-        </button>
-      ))}
+    <div className="amount">
+      <div className="choice">
+        {[0.25, 0.5, 1].map((f) => (
+          <button key={f} className={'btn ' + (v > 0 && v === at(f) ? 'on' : '')} onClick={() => onChange(at(f))} disabled={max <= 0}>
+            {f * 100}%
+          </button>
+        ))}
+      </div>
+      <Slider value={v} min={0} max={Math.max(1, max)} step={step} onChange={onChange} />
+      <div className="amount-foot muted small">
+        <span>
+          {v > 0 ? (
+            <>
+              <b className="amount-val">{fmtShort(v)}</b> {unit}
+            </>
+          ) : (
+            'нисколько'
+          )}
+        </span>
+        <span>максимум {fmtShort(max)}</span>
+      </div>
     </div>
   );
 }
@@ -65,17 +84,6 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
     Math.min(fc.staffRoom - Math.max(0, draft.hireSoldiers), maxRecruits('scientist', me.scientists, pop, me.money - (fc.spend - fc.scientistCost))),
   );
   const round100 = (x: number) => Math.floor(x / 100) * 100;
-  const soldierOpts = [
-    { label: 'Не нанимать', value: 0 },
-    { label: 'Немного', value: round100(maxS * 0.25) },
-    { label: 'Много', value: round100(maxS * 0.6) },
-    { label: 'Максимум', value: maxS },
-  ];
-  const sciOpts = [
-    { label: 'Не нанимать', value: 0 },
-    { label: 'Немного', value: round100(maxSc * 0.25) },
-    { label: 'Много', value: round100(maxSc * 0.6) },
-  ];
   const income = fc.taxes + fc.saleRevenue;
   const load = fc.upkeep / Math.max(1, income);
   const trouble = fc.unfed > 0 || fc.unpaid > 0;
@@ -111,8 +119,9 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
   const avail = Math.max(0, me.soldiers - sent);
   const tgt = target != null && nbs.includes(target) ? target : null;
   const gen = pickAttacker(me, draft.tasks);
-  const [frac, setFrac] = useState(0.5);
-  const army = round100(avail * frac);
+  // По умолчанию — половина армии, пока игрок не выбрал своё число для этой цели
+  const [pick, setPick] = useState<{ t: number | null; v: number } | null>(null);
+  const army = Math.min(avail, pick && pick.t === tgt ? pick.v : round100(avail * 0.5));
   const odds = tgt != null && gen && army > 0 ? battleOdds(game, geo, me.id, tgt, gen, army) : null;
   const formRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -126,6 +135,7 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
       ...o,
       tasks: autoTasks(me, { ...o.tasks, [gen.id]: { type: 'attack', target: tgt, soldiers: army } }, o.dismissGenerals),
     }));
+    setPick(null);
     onTarget(null);
   };
   const cancel = (g: General) =>
@@ -144,6 +154,10 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
       return { tone: 'warn', text: 'Без генерала армия не может наступать и плохо обороняется — купите генерала.' };
     if (campaigns.length > 0 && !generals.some((g) => taskOf(g).type === 'defend'))
       return { tone: 'warn', text: 'Все генералы ушли в поход — оборону дома никто не возглавляет. Купите ещё генерала.' };
+    if (me.scientists === 0 && draft.hireScientists <= 0)
+      return { tone: 'warn', text: 'Учёных нет — наука стоит на месте. Наймите учёных в разделе «Наука».' };
+    if (pop >= fc.maxPop * 0.97 && !chosen.includes(2))
+      return { tone: 'warn', text: 'Население упёрлось в предел земли. Изучайте «Плотность» — или завоюйте новые земли.' };
     if (inTruce) {
       const left = truce - game.year + 1;
       if (left <= 3) return { tone: 'warn', text: `Мир кончится через ${years(left)} — соседи уже вооружаются. Пора нанимать солдат.` };
@@ -166,7 +180,8 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
       </div>
 
       <Card title="Солдаты" right={<span className="muted">сейчас {fmtShort(me.soldiers)}</span>}>
-        <Choice options={soldierOpts} value={Math.max(0, draft.hireSoldiers)} onChange={(v) => setDraft((o) => ({ ...o, hireSoldiers: v }))} />
+        <div className="muted small">Нанять (от того, что позволяют деньги)</div>
+        <Amount max={maxS} value={draft.hireSoldiers} unit="новобранцев" onChange={(v) => setDraft((o) => ({ ...o, hireSoldiers: v }))} />
         <div className="load">
           <div className="load-text">
             Жалованье армии и учёных: <b className={loadTone}>{Math.round(load * 100)}% дохода</b>
@@ -180,7 +195,7 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
 
       <Card title="Наука" right={<span className="muted">учёных {fmtShort(fc.scientists)}</span>}>
         <div className="muted small">Нанять учёных</div>
-        <Choice options={sciOpts} value={Math.max(0, draft.hireScientists)} onChange={(v) => setDraft((o) => ({ ...o, hireScientists: v }))} />
+        <Amount max={maxSc} value={draft.hireScientists} unit="учёных" onChange={(v) => setDraft((o) => ({ ...o, hireScientists: v }))} />
         <div className="muted small" style={{ marginTop: 10 }}>
           Главные направления (учёные поделятся поровну)
         </div>
@@ -222,21 +237,11 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
                   <div className="warn-box">Нет свободного генерала — купите генерала ниже.</div>
                 ) : (
                   <>
-                    <div className="form-row">
-                      <span className="muted">Послать</span>
-                      <Choice
-                        options={[
-                          { label: 'Треть армии', value: 1 / 3 },
-                          { label: 'Половину', value: 0.5 },
-                          { label: 'Всех', value: 1 },
-                        ]}
-                        value={frac}
-                        onChange={setFrac}
-                      />
-                    </div>
+                    <div className="muted small">Сколько солдат послать</div>
+                    <Amount max={avail} value={army} unit="солдат" onChange={(v) => setPick({ t: tgt, v })} />
                     <div className="attack-sum">
                       <span>
-                        {fmtShort(army)} солдат, ведёт {gen.name}
+                        Ведёт {gen.name}
                       </span>
                       {odds && (
                         <span>

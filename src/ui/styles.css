@@ -1655,3 +1655,12 @@ details.more-inline summary {
 .detail-switch {
   padding: 12px 12px 0;
 }
+.amount-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -4px;
+}
+.amount-val {
+  color: var(--text);
+  font-size: 15px;
+}

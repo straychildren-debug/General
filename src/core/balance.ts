@@ -3,21 +3,21 @@ import type { Country, General, TraitId } from './types';
 /** Свойства местности: плодородие, вместимость населения, оборона. */
 export const TERRAIN_INFO = [
   { name: 'Вода', fert: 0, cap: 0, def: 1 },
-  { name: 'Равнина', fert: 1.15, cap: 1.1, def: 1.0 },
-  { name: 'Лес', fert: 0.85, cap: 0.9, def: 1.2 },
-  { name: 'Холмы', fert: 0.8, cap: 0.85, def: 1.35 },
-  { name: 'Горы', fert: 0.45, cap: 0.55, def: 1.7 },
+  { name: 'Равнина', fert: 1.15, cap: 1.05, def: 1.0 },
+  { name: 'Лес', fert: 0.85, cap: 0.95, def: 1.2 },
+  { name: 'Холмы', fert: 0.8, cap: 0.9, def: 1.35 },
+  { name: 'Горы', fert: 0.45, cap: 0.7, def: 1.7 },
 ];
 
 /** Основные константы баланса. Денежные цены генералов/укреплений масштабируются размером страны. */
 export const B = {
-  popPerCell: 5000,
-  startPopFrac: 0.55,
-  startSoldierFrac: 0.025,
-  startSciFrac: 0.03,
+  popPerCell: 3100,
+  startPopFrac: 0.88, // старт близко к пределу земли — он достигается на 3–4 ходу
+  startSoldierFrac: 0, // в начале только крестьяне
+  startSciFrac: 0,
   startMoneyPerCell: 1200,
 
-  growthBase: 0.045,
+  growthBase: 0.045, // рост населения в год, пока не упрётся в предел земли
   grainPerCiv: 1.25, // зерна на крестьянина в год; каждый житель съедает 1
   foodPerPerson: 1,
 
