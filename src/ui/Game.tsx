@@ -1,0 +1,474 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { allAiOrders } from '../ai/ai';
+import { forecast } from '../core/econ';
+import { fmtShort, fmtSigned, pct } from '../core/format';
+import { defaultOrders } from '../core/game';
+import { computeGeo } from '../core/geo';
+import { battleVisible } from '../core/intel';
+import { resolveTurn } from '../core/turn';
+import type { GameState, Orders } from '../core/types';
+import { ArmyPanel } from './ArmyPanel';
+import { Swatch } from './common';
+import { EconomyPanel } from './EconomyPanel';
+import { attackArrow, centroids, ownerAtYear } from './mapGeometry';
+import { MapView, type Arrow } from './MapView';
+import { NewsPanel, YearView } from './NewsPanel';
+import { SciencePanel } from './SciencePanel';
+import { saveGame } from './storage';
+import { WorldPanel } from './WorldPanel';
+
+type Tab = 'economy' | 'science' | 'army' | 'world' | 'news';
+
+function makeDrafts(g: GameState): Record<number, Orders> {
+  const res: Record<number, Orders> = {};
+  for (const c of g.countries) if (c.alive && c.controller === 'human') res[c.id] = defaultOrders(c);
+  return res;
+}
+
+export function Game({ initial, onExit }: { initial: GameState; onExit: () => void }) {
+  const [game, setGame] = useState(initial);
+  const geo = useMemo(() => computeGeo(game), [game]);
+  const humans = useMemo(
+    () => game.countries.filter((c) => c.alive && c.controller === 'human').map((c) => c.id),
+    [game],
+  );
+  const hadHumans = game.countries.some((c) => c.controller === 'human');
+  const [turnIdx, setTurnIdx] = useState(0);
+  const viewer = humans.length ? humans[Math.min(turnIdx, humans.length - 1)] : null;
+  const [drafts, setDrafts] = useState<Record<number, Orders>>(() => makeDrafts(initial));
+  const [handoff, setHandoff] = useState(humans.length > 1);
+  const [showReport, setShowReport] = useState(false);
+  const [tab, setTab] = useState<Tab>(viewer != null ? 'economy' : 'world');
+  const [selected, setSelected] = useState<number | null>(null);
+  const [attackTarget, setAttackTarget] = useState<number | null>(null);
+  const [helpHidden, setHelpHidden] = useState(() => {
+    try {
+      return localStorage.getItem('polkovodets.help') === 'hidden';
+    } catch {
+      return false;
+    }
+  });
+  const [mode, setMode] = useState<'political' | 'terrain'>('political');
+  const [showBattles, setShowBattles] = useState(true);
+  const [chron, setChron] = useState<number | null>(null);
+  const [chronPlay, setChronPlay] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [auto, setAuto] = useState(false);
+  const [defeatSeen, setDefeatSeen] = useState(false);
+  const [overSeen, setOverSeen] = useState(false);
+
+  const me = viewer != null ? game.countries[viewer] : null;
+  const draft = viewer != null ? drafts[viewer] ?? defaultOrders(game.countries[viewer]) : null;
+  const setDraft = useCallback(
+    (f: (o: Orders) => Orders) => {
+      if (viewer == null) return;
+      setDrafts((d) => ({ ...d, [viewer]: f(d[viewer] ?? defaultOrders(game.countries[viewer])) }));
+    },
+    [viewer, game],
+  );
+  const fc = useMemo(() => (me && draft ? forecast(game, geo, me, draft) : null), [game, geo, me, draft]);
+
+  const owner = useMemo(() => (chron != null ? ownerAtYear(game, chron) : game.map.owner), [game, chron]);
+  const n = game.countries.length;
+  const cents = useMemo(() => centroids(game.map, owner, n), [game.map, owner, n]);
+  const myNbs = viewer != null ? geo.neighbors[viewer] : [];
+  // Туман: игрок видит на карте только себя и соседей (после конца игры — всё)
+  const mapOwner = useMemo(() => {
+    if (viewer == null || game.over) return owner;
+    const vis = new Set([viewer, ...geo.neighbors[viewer]]);
+    return owner.map((o) => (o < 0 || vis.has(o) ? o : n));
+  }, [owner, viewer, game.over, geo, n]);
+
+  const arrows = useMemo(() => {
+    const res: Arrow[] = [];
+    if (chron != null) return res;
+    const last = game.reports[game.reports.length - 1];
+    if (showBattles && last) {
+      for (const b of last.battles) {
+        if (!battleVisible(viewer, myNbs, b.attacker, b.defender)) continue;
+        const seg = attackArrow(game.map, owner, cents, b.attacker, b.defender);
+        if (!seg) continue;
+        const mine = viewer != null && (b.attacker === viewer || b.defender === viewer);
+        const good = (b.attacker === viewer) === b.attackerWon;
+        res.push({
+          from: seg[0],
+          to: seg[1],
+          color: mine ? (good ? '#5fd37a' : '#ff5a4f') : b.attackerWon ? 'rgba(255,140,100,0.9)' : 'rgba(210,210,210,0.75)',
+          width: mine ? 3 : 2,
+          dashed: !b.attackerWon,
+        });
+      }
+    }
+    if (me && draft) {
+      for (const g of me.generals) {
+        const t = draft.tasks[g.id];
+        if (t?.type !== 'attack') continue;
+        const seg = attackArrow(game.map, owner, cents, me.id, t.target);
+        if (seg) res.push({ from: seg[0], to: seg[1], color: '#ffd666', width: 4.5 });
+      }
+    }
+    return res;
+  }, [chron, game, owner, cents, showBattles, viewer, me, draft, myNbs]);
+
+  const endTurn = useCallback(() => {
+    if (busy || game.over) return;
+    if (viewer != null && turnIdx < humans.length - 1) {
+      setTurnIdx(turnIdx + 1);
+      setHandoff(true);
+      setSelected(null);
+      return;
+    }
+    setBusy(true);
+    setTimeout(() => {
+      const orders = allAiOrders(game, geo);
+      for (const id of humans) orders[id] = drafts[id] ?? defaultOrders(game.countries[id]);
+      const next = resolveTurn(game, orders);
+      const nextHumans = next.countries.filter((c) => c.alive && c.controller === 'human');
+      setGame(next);
+      setDrafts(makeDrafts(next));
+      setTurnIdx(0);
+      if (nextHumans.length > 1) setHandoff(true);
+      else if (nextHumans.length === 1) setShowReport(true);
+      saveGame(next);
+      setBusy(false);
+    }, 20);
+  }, [busy, game, geo, humans, drafts, viewer, turnIdx]);
+
+  // Автоигра в режиме наблюдателя
+  useEffect(() => {
+    if (!auto || humans.length || game.over || busy) return;
+    const t = setTimeout(endTurn, 350);
+    return () => clearTimeout(t);
+  }, [auto, humans.length, game.over, busy, endTurn]);
+
+  // Проигрывание хроники
+  useEffect(() => {
+    if (!chronPlay || chron == null) return;
+    if (chron >= game.year) {
+      setChronPlay(false);
+      return;
+    }
+    const t = setTimeout(() => setChron((y) => (y == null ? null : y + 1)), 180);
+    return () => clearTimeout(t);
+  }, [chronPlay, chron, game.year]);
+
+  // Щелчок по соседу — сразу к нападению; по своей стране — к хозяйству; по остальным — сведения о стране
+  const onSelect = (id: number | null) => {
+    setSelected(id);
+    if (id == null) return;
+    if (viewer != null && id === viewer) setTab('economy');
+    else if (viewer != null && myNbs.includes(id) && game.countries[id].alive) {
+      setAttackTarget(id);
+      setTab('army');
+    } else setTab('world');
+  };
+  const onTarget = (id: number | null) => {
+    setAttackTarget(id);
+    setSelected(id);
+  };
+
+  const tabs: { id: Tab; label: string }[] = viewer != null
+    ? [
+        { id: 'economy', label: 'Хозяйство' },
+        { id: 'science', label: 'Наука' },
+        { id: 'army', label: 'Армия' },
+        { id: 'world', label: 'Мир' },
+        { id: 'news', label: 'События' },
+      ]
+    : [
+        { id: 'world', label: 'Мир' },
+        { id: 'news', label: 'События' },
+      ];
+  const activeTab = tabs.some((t) => t.id === tab) ? tab : tabs[0].id;
+  const panelProps = me && draft && fc ? { game, geo, me, draft, setDraft, fc, onSelect } : null;
+  const lastRep = game.reports[game.reports.length - 1];
+  const prevCells = game.history.length >= 2 ? game.history[game.history.length - 2].cells : null;
+
+  return (
+    <div className="app">
+      <header className="topbar">
+        <div className="logo">Полководец</div>
+        {me ? (
+          <div className="country-chip" style={{ borderColor: me.color }}>
+            <Swatch color={me.color} />
+            <div>
+              <div className="cc-name">{me.name}</div>
+              <div className="cc-sub">{me.playerName}</div>
+            </div>
+          </div>
+        ) : (
+          <div className="country-chip muted">Наблюдатель</div>
+        )}
+        <div className="year">
+          <span className="muted">Год</span> <b>{game.year}</b>
+        </div>
+        {me && fc && (
+          <div className="stats">
+            <Stat label="Деньги" value={fmtShort(me.money)} sub={fmtSigned(fc.moneyEnd - me.money) + ' за год'} subTone={fc.moneyEnd >= me.money ? 'pos' : 'neg'} />
+            <Stat label="Население" value={fmtShort(me.population)} sub={fmtSigned(fc.popEnd - me.population) + ' за год'} subTone={fc.popEnd >= me.population ? 'pos' : 'neg'} />
+
+            <Stat label="Солдаты" value={fmtShort(me.soldiers)} />
+            <Stat label="Учёные" value={fmtShort(me.scientists)} />
+
+            <Stat label="Земля" value={pct(me.cells / game.map.landCells, 1)} />
+          </div>
+        )}
+        <div className="spacer" />
+        <button className="btn ghost" onClick={() => { saveGame(game); onExit(); }}>
+          Меню
+        </button>
+        {viewer != null ? (
+          <button className="btn primary" onClick={endTurn} disabled={busy || game.over}>
+            {busy ? 'Обработка…' : humans.length > 1 && turnIdx < humans.length - 1 ? 'Передать ход' : 'Завершить год'}
+          </button>
+        ) : (
+          <>
+            <button className="btn" onClick={endTurn} disabled={busy || game.over}>
+              Следующий год
+            </button>
+            <button className={'btn ' + (auto ? 'on' : '')} onClick={() => setAuto(!auto)} disabled={game.over}>
+              {auto ? '❚❚ Пауза' : '▶ Авто'}
+            </button>
+          </>
+        )}
+      </header>
+
+      <main className="main">
+        <div className="map-area">
+          <MapView
+            game={game}
+            owner={mapOwner}
+            myId={viewer}
+            selected={selected}
+            onSelect={onSelect}
+            arrows={arrows}
+            mode={mode}
+          />
+          <div className="map-tools">
+            <button className={mode === 'political' ? 'on' : ''} onClick={() => setMode('political')}>
+              Страны
+            </button>
+            <button className={mode === 'terrain' ? 'on' : ''} onClick={() => setMode('terrain')}>
+              Рельеф
+            </button>
+            <button className={showBattles ? 'on' : ''} onClick={() => setShowBattles(!showBattles)} title="Сражения прошлого года">
+              Сражения
+            </button>
+            <button
+              className={chron != null ? 'on' : ''}
+              onClick={() => {
+                setChron(chron == null ? 1 : null);
+                setChronPlay(false);
+              }}
+            >
+              Хроника
+            </button>
+          </div>
+          {chron != null && (
+            <div className="chronicle">
+              <button className="btn small" onClick={() => setChronPlay(!chronPlay)}>
+                {chronPlay ? '❚❚' : '▶'}
+              </button>
+              <input
+                type="range"
+                className="slider"
+                min={1}
+                max={game.year}
+                value={chron}
+                onChange={(e) => setChron(Number(e.target.value))}
+                style={{ ['--p' as string]: ((chron - 1) / Math.max(1, game.year - 1)) * 100 + '%' }}
+              />
+              <b>{chron} год</b>
+              <button className="btn small" onClick={() => setChron(null)}>
+                Сейчас
+              </button>
+            </div>
+          )}
+          <div className="legend">
+            <span><i className="lg-arrow you" /> ваши приказы</span>
+            <span><i className="lg-arrow won" /> победа</span>
+            <span><i className="lg-arrow lost" /> атака отбита</span>
+          </div>
+        </div>
+
+        <aside className="side">
+          <nav className="tabs">
+            {tabs.map((t) => (
+              <button key={t.id} className={activeTab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>
+                {t.label}
+              </button>
+            ))}
+          </nav>
+          <div className="side-scroll">
+            {viewer != null && !helpHidden && game.year <= 5 && (
+              <div className="howto">
+                <b>Как играть</b>
+                <ol>
+                  <li>
+                    <b>Хозяйство</b> — наймите солдат и учёных ползунками. Деньги платят крестьяне.
+                  </li>
+                  <li>
+                    <b>Наука</b> — распределите учёных по направлениям.
+                  </li>
+                  <li>
+                    <b>Напасть</b> — щёлкните по соседу на карте, выберите число солдат и «Отправить в поход».
+                  </li>
+                  <li>
+                    Нажмите <b>«Завершить год»</b> и прочитайте итоги.
+                  </li>
+                </ol>
+                <button
+                  className="btn small"
+                  onClick={() => {
+                    setHelpHidden(true);
+                    try {
+                      localStorage.setItem('polkovodets.help', 'hidden');
+                    } catch {
+                      /* хранилище недоступно */
+                    }
+                  }}
+                >
+                  Понятно
+                </button>
+              </div>
+            )}
+            {activeTab === 'economy' && panelProps && <EconomyPanel {...panelProps} />}
+            {activeTab === 'science' && panelProps && <SciencePanel {...panelProps} />}
+            {activeTab === 'army' && panelProps && <ArmyPanel {...panelProps} target={attackTarget} onTarget={onTarget} />}
+            {activeTab === 'world' && <WorldPanel game={game} geo={geo} viewer={viewer} selected={selected} onSelect={onSelect} />}
+            {activeTab === 'news' && <NewsPanel game={game} viewer={viewer} nbs={myNbs} />}
+          </div>
+        </aside>
+      </main>
+
+      {busy && <div className="busy">Идёт {game.year} год…</div>}
+
+      {handoff && me && (
+        <div className="modal-back">
+          <div className="modal small-modal">
+            <h2>Ход игрока</h2>
+            <div className="handoff">
+              <Swatch color={me.color} />
+              <div>
+                <div className="big">{me.playerName}</div>
+                <div className="muted">{me.name}</div>
+              </div>
+            </div>
+            <p className="muted">Остальные игроки, отвернитесь от экрана.</p>
+            <button
+              className="btn primary wide"
+              onClick={() => {
+                setHandoff(false);
+                if (game.reports.length) setShowReport(true);
+              }}
+            >
+              Начать ход
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showReport && !handoff && lastRep && me && (
+        <div className="modal-back" onClick={() => setShowReport(false)}>
+          <div className="modal wide" onClick={(e) => e.stopPropagation()}>
+            <h2>Итоги {lastRep.year} года</h2>
+            {prevCells && (
+              <div className="summary">
+                <span>
+                  Территория: <b>{me.cells}</b>{' '}
+                  {me.cells !== prevCells[me.id] && (
+                    <span className={me.cells > prevCells[me.id] ? 'pos' : 'neg'}>
+                      ({me.cells > prevCells[me.id] ? '+' : ''}
+                      {me.cells - prevCells[me.id]})
+                    </span>
+                  )}
+                </span>
+                <span>
+                  Деньги: <b>{fmtShort(me.money)}</b>
+                </span>
+                <span>
+                  Цена зерна: <b>{lastRep.price.toFixed(2)}</b>
+                </span>
+              </div>
+            )}
+            <div className="modal-scroll">
+              <YearView game={game} rep={lastRep} viewer={viewer} nbs={myNbs} />
+            </div>
+            <button className="btn primary wide" onClick={() => setShowReport(false)}>
+              К делам
+            </button>
+          </div>
+        </div>
+      )}
+
+      {hadHumans && !humans.length && !defeatSeen && !game.over && (
+        <div className="modal-back">
+          <div className="modal small-modal">
+            <h2>Поражение</h2>
+            <p>Ваша держава пала. Мир продолжит жить без вас.</p>
+            <div className="modal-actions">
+              <button className="btn" onClick={() => setDefeatSeen(true)}>
+                Наблюдать дальше
+              </button>
+              <button className="btn primary" onClick={onExit}>
+                Главное меню
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {game.over && !overSeen && game.winner != null && (
+        <div className="modal-back">
+          <div className="modal small-modal">
+            {(() => {
+              const w = game.countries[game.winner];
+              const human = w.controller === 'human';
+              return (
+                <>
+                  <h2>{human ? 'Победа!' : 'Игра окончена'}</h2>
+                  <div className="handoff">
+                    <Swatch color={w.color} />
+                    <div>
+                      <div className="big">{w.name}</div>
+                      <div className="muted">{w.playerName ?? 'компьютер'} · {game.year - 1} год</div>
+                    </div>
+                  </div>
+                  <p className="muted">
+                    {human ? 'Вы объединили земли под своим началом.' : 'Земли объединены под чужим знаменем.'}
+                  </p>
+                </>
+              );
+            })()}
+            <div className="modal-actions">
+              <button
+                className="btn"
+                onClick={() => {
+                  setOverSeen(true);
+                  setChron(1);
+                  setChronPlay(true);
+                }}
+              >
+                Хроника партии
+              </button>
+              <button className="btn primary" onClick={onExit}>
+                Главное меню
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value, sub, subTone }: { label: string; value: React.ReactNode; sub?: string; subTone?: 'pos' | 'neg' }) {
+  return (
+    <div className="stat">
+      <div className="stat-label">{label}</div>
+      <div className="stat-value">{value}</div>
+      {sub && <div className={'stat-sub ' + (subTone ?? '')}>{sub}</div>}
+    </div>
+  );
+}
+
