@@ -105,61 +105,13 @@ function Tile({ title, now, end, delta, note, tone }: { title: string; now: stri
 
 export function EconomyPanel({ me, draft, setDraft, fc }: PanelProps) {
   const peasants = Math.max(0, me.population - me.soldiers - me.scientists);
-  const dMoney = fc.moneyEnd - me.money;
-  const dPop = fc.popEnd - fc.population;
   const atCap = me.population >= fc.maxPop * 0.97;
-  const hungry = fc.unfed > 0;
   const room = fc.staffRoom;
   const share = (x: number) => (me.population > 0 ? (x / me.population) * 100 : 0);
 
   return (
     <div className="panel-body">
-      <Card title="Прогноз на год">
-        <div className="tiles">
-          <Tile
-            title="Деньги"
-            now={fmtShort(me.money)}
-            end={fmtShort(fc.moneyEnd)}
-            delta={`${fmtSigned(dMoney)} за год`}
-            tone={dMoney >= 0 ? 'pos' : 'neg'}
-          />
-          <Tile
-            title="Население"
-            now={fmtShort(fc.population)}
-            end={fmtShort(fc.popEnd)}
-            delta={`${fmtSigned(dPop)} за год`}
-            note={atCap && !hungry ? 'земли мало — нужна новая' : undefined}
-            tone={dPop >= 0 ? 'pos' : 'neg'}
-          />
-          <Tile
-            title="Еда"
-            now={hungry ? 'Голод!' : fc.grainCost > 0 ? 'Покупаем' : 'Хватает'}
-            note={
-              hungry
-                ? `не хватит денег на зерно`
-                : fc.grainCost > 0
-                  ? `докупим на ${fmtShort(fc.grainCost)}`
-                  : `излишки дадут ${fmtShort(fc.saleRevenue)}`
-            }
-            tone={hungry ? 'neg' : fc.grainCost > 0 ? undefined : 'pos'}
-          />
-        </div>
-        {fc.moneyAfterPurchases < 0 && <div className="warn-box">Денег на весь найм не хватит — часть не выполнится.</div>}
-        {fc.unpaid > 0 && (
-          <div className="warn-box">Не хватит денег на жалованье — разбежится около {fmtShort(fc.unpaid / B.soldierUpkeep)} солдат.</div>
-        )}
-        {hungry && <div className="warn-box">Голод: умрёт около {fmtShort(-dPop)} человек. Наймите меньше людей.</div>}
-        <details className="more-inline">
-          <summary>Откуда деньги</summary>
-          <Row label="Платят крестьяне" value={fmtSigned(fc.taxes)} tone="pos" />
-          {fc.saleRevenue > 0 && <Row label="Продажа излишков зерна" value={fmtSigned(fc.saleRevenue)} tone="pos" />}
-          {fc.grainCost > 0 && <Row label="Покупка зерна" value={fmtSigned(-fc.grainCost)} tone="neg" />}
-          <Row label="Жалованье солдатам" value={fmtSigned(-fc.upkeepSoldiers)} tone="neg" />
-          <Row label="Жалованье учёным" value={fmtSigned(-fc.upkeepScientists)} tone="neg" />
-          <Row label="Генералы" value={fmtSigned(-fc.upkeepGenerals)} tone="neg" />
-          {fc.spend > 0 && <Row label="Найм и покупки" value={fmtSigned(-fc.spend)} tone="neg" />}
-        </details>
-      </Card>
+      <ForecastCard me={me} fc={fc} />
 
       <Card title="Найм">
         <Hire
@@ -213,5 +165,48 @@ export function EconomyPanel({ me, draft, setDraft, fc }: PanelProps) {
         />
       </Card>
     </div>
+  );
+}
+
+/** Прогноз на год: деньги, население, еда — общий для «Приказов» и «Подробно». */
+export function ForecastCard({ me, fc }: { me: PanelProps['me']; fc: PanelProps['fc'] }) {
+  const dMoney = fc.moneyEnd - me.money;
+  const dPop = fc.popEnd - fc.population;
+  const atCap = me.population >= fc.maxPop * 0.995;
+  const willCap = !atCap && fc.popEnd >= fc.maxPop - 1;
+  const hungry = fc.unfed > 0;
+  return (
+    <Card title="Прогноз на год">
+      <div className="tiles">
+        <Tile title="Деньги" now={fmtShort(me.money)} end={fmtShort(fc.moneyEnd)} delta={`${fmtSigned(dMoney)} за год`} tone={dMoney >= 0 ? 'pos' : 'neg'} />
+        <Tile
+          title="Население"
+          now={fmtShort(fc.population)}
+          end={fmtShort(fc.popEnd)}
+          delta={`${fmtSigned(dPop)} за год`}
+          note={hungry ? undefined : atCap ? 'упёрлось в предел земли' : willCap ? 'дойдёт до предела земли' : undefined}
+          tone={dPop >= 0 ? 'pos' : 'neg'}
+        />
+        <Tile
+          title="Еда"
+          now={hungry ? 'Голод!' : fc.grainCost > 0 ? 'Покупаем' : 'Хватает'}
+          note={hungry ? 'не хватит денег на зерно' : fc.grainCost > 0 ? `докупим на ${fmtShort(fc.grainCost)}` : `излишки дадут ${fmtShort(fc.saleRevenue)}`}
+          tone={hungry ? 'neg' : fc.grainCost > 0 ? undefined : 'pos'}
+        />
+      </div>
+      {fc.moneyAfterPurchases < 0 && <div className="warn-box">Денег на весь найм не хватит — часть не выполнится.</div>}
+      {fc.unpaid > 0 && <div className="warn-box">Не хватит денег на жалованье — разбежится около {fmtShort(fc.unpaid / B.soldierUpkeep)} солдат.</div>}
+      {hungry && <div className="warn-box">Голод: умрёт около {fmtShort(-dPop)} человек. Наймите меньше людей.</div>}
+      <details className="more-inline">
+        <summary>Откуда деньги</summary>
+        <Row label="Платят крестьяне" value={fmtSigned(fc.taxes)} tone="pos" />
+        {fc.saleRevenue > 0 && <Row label="Продажа излишков зерна" value={fmtSigned(fc.saleRevenue)} tone="pos" />}
+        {fc.grainCost > 0 && <Row label="Покупка зерна" value={fmtSigned(-fc.grainCost)} tone="neg" />}
+        <Row label="Жалованье солдатам" value={fmtSigned(-fc.upkeepSoldiers)} tone="neg" />
+        <Row label="Жалованье учёным" value={fmtSigned(-fc.upkeepScientists)} tone="neg" />
+        <Row label="Генералы" value={fmtSigned(-fc.upkeepGenerals)} tone="neg" />
+        {fc.spend > 0 && <Row label="Найм и покупки" value={fmtSigned(-fc.spend)} tone="neg" />}
+      </details>
+    </Card>
   );
 }

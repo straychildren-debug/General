@@ -1664,3 +1664,24 @@ details.more-inline summary {
   color: var(--text);
   font-size: 15px;
 }
+
+/* Ручное распределение учёных */
+.sci-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0 6px;
+}
+.sci-rows {
+  display: flex;
+  flex-direction: column;
+}
+.sci-row2 {
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.sci-row2.active .sci-name {
+  color: var(--accent-2);
+}

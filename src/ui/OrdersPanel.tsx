@@ -1,28 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { B, levelCost, maxRecruits, sciMult } from '../core/balance';
+import { maxRecruits } from '../core/balance';
 import { battleOdds } from '../core/estimate';
 import { fmtShort, years } from '../core/format';
 import { estimate } from '../core/intel';
-import { S_SCI, type General, type GeneralTask } from '../core/types';
+import type { General, GeneralTask } from '../core/types';
 import { autoTasks, pickAttacker } from './autoGenerals';
+import { ForecastCard } from './EconomyPanel';
+import { ScienceRows } from './SciencePanel';
 import { Card, Slider, Swatch, type PanelProps } from './common';
 
 interface Props extends PanelProps {
   target: number | null;
   onTarget: (id: number | null) => void;
 }
-
-const SHORT = ['Деньги', 'Урожай', 'Плотность', 'Рост населения', 'Военная мощь', 'Наука', 'Оборона', 'Разведка'];
-const SHORT_HINT = [
-  'больше денег с крестьян',
-  'больше зерна — можно держать больше солдат',
-  'выше предел населения на той же земле',
-  'население быстрее растёт',
-  'солдаты сильнее в атаке и обороне',
-  'учёные работают быстрее',
-  'граница держится крепче',
-  'точнее сведения о соседях',
-];
 
 /** Кнопки 25% / 50% / 100% от максимума и ползунок для точного числа. */
 function Amount({ max, value, onChange, unit }: { max: number; value: number; onChange: (v: number) => void; unit: string }) {
@@ -69,7 +59,7 @@ function chanceWord(p: number): { text: string; tone: 'pos' | 'warn' | 'neg' } {
   return { text: 'низкий', tone: 'neg' };
 }
 
-export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarget }: Props) {
+export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, target, onTarget }: Props) {
   const pop = me.population;
   const truce = game.settings.truceYears ?? 0;
   const inTruce = game.year <= truce;
@@ -88,24 +78,6 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
   const load = fc.upkeep / Math.max(1, income);
   const trouble = fc.unfed > 0 || fc.unpaid > 0;
   const loadTone = trouble || load > 0.95 ? 'neg' : load > 0.7 ? 'warn' : 'pos';
-
-  // ── Наука: главные направления, учёные делятся поровну ──
-  const chosen = draft.scienceAlloc.map((a, i) => (a > 0.5 ? i : -1)).filter((i) => i >= 0);
-  const toggleSci = (i: number) => {
-    const next = chosen.includes(i) ? chosen.filter((x) => x !== i) : [...chosen, i];
-    if (!next.length) return;
-    const alloc = new Array(SHORT.length).fill(0);
-    for (const k of next) alloc[k] = 100 / next.length;
-    setDraft((o) => ({ ...o, scienceAlloc: alloc }));
-  };
-  const ptsPer = B.ptsPerSci * sciMult(me, S_SCI);
-  const nextFinds = chosen
-    .map((i) => {
-      const n = (draft.scienceAlloc[i] / 100) * fc.scientists;
-      const left = Math.max(0, levelCost(me.science.level[i], game.cellsPerCountry) - me.science.progress[i]);
-      return { i, y: n > 0 ? Math.ceil(left / (n * ptsPer)) : Infinity };
-    })
-    .sort((a, b) => a.y - b.y);
 
   // ── Поход ──
   const nbs = geo.neighbors[me.id].filter((n) => game.countries[n].alive);
@@ -156,8 +128,10 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
       return { tone: 'warn', text: 'Все генералы ушли в поход — оборону дома никто не возглавляет. Купите ещё генерала.' };
     if (me.scientists === 0 && draft.hireScientists <= 0)
       return { tone: 'warn', text: 'Учёных нет — наука стоит на месте. Наймите учёных в разделе «Наука».' };
-    if (pop >= fc.maxPop * 0.97 && !chosen.includes(2))
+    if (pop >= fc.maxPop * 0.995 && !(draft.scienceAlloc[2] > 0.5))
       return { tone: 'warn', text: 'Население упёрлось в предел земли. Изучайте «Плотность» — или завоюйте новые земли.' };
+    if (fc.popEnd >= fc.maxPop - 1 && !(draft.scienceAlloc[2] > 0.5))
+      return { tone: 'warn', text: 'В этом году население дойдёт до предела земли. Пора изучать «Плотность населения».' };
     if (inTruce) {
       const left = truce - game.year + 1;
       if (left <= 3) return { tone: 'warn', text: `Мир кончится через ${years(left)} — соседи уже вооружаются. Пора нанимать солдат.` };
@@ -169,7 +143,7 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
     const weak = nbs.find((n) => estimate(game, me.id, n, true).soldiers < me.soldiers * 0.6);
     if (weak != null && generals.length > 0 && campaigns.length === 0)
       return { tone: 'ok', text: `У государства ${game.countries[weak].name} мало войск — хороший момент для похода.` };
-    if (pop >= fc.maxPop * 0.97) return { tone: 'warn', text: 'Земли не хватает — население больше не растёт. Нужны новые земли.' };
+    if (pop >= fc.maxPop * 0.995) return { tone: 'warn', text: 'Земли не хватает — население больше не растёт. Нужны новые земли.' };
     return { tone: 'ok', text: 'Всё спокойно. Копите силы и развивайте науку.' };
   })();
 
@@ -178,6 +152,8 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
       <div className={'advisor ' + advice.tone}>
         <b>Советник:</b> {advice.text}
       </div>
+
+      <ForecastCard me={me} fc={fc} />
 
       <Card title="Солдаты" right={<span className="muted">сейчас {fmtShort(me.soldiers)}</span>}>
         <div className="muted small">Нанять (от того, что позволяют деньги)</div>
@@ -196,22 +172,9 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
       <Card title="Наука" right={<span className="muted">учёных {fmtShort(fc.scientists)}</span>}>
         <div className="muted small">Нанять учёных</div>
         <Amount max={maxSc} value={draft.hireScientists} unit="учёных" onChange={(v) => setDraft((o) => ({ ...o, hireScientists: v }))} />
-        <div className="muted small" style={{ marginTop: 10 }}>
-          Главные направления (учёные поделятся поровну)
+        <div className="sci-in-orders">
+          <ScienceRows game={game} geo={geo} me={me} draft={draft} setDraft={setDraft} fc={fc} onSelect={onSelect} />
         </div>
-        <div className="chips">
-          {SHORT.map((name, i) => (
-            <button key={i} className={'chip ' + (chosen.includes(i) ? 'on' : '')} onClick={() => toggleSci(i)} title={SHORT_HINT[i]}>
-              {name} <span className="muted">{me.science.level[i]}</span>
-            </button>
-          ))}
-        </div>
-        {nextFinds[0] && Number.isFinite(nextFinds[0].y) && (
-          <div className="hint">
-            Ближайшее открытие: «{SHORT[nextFinds[0].i]}» — {nextFinds[0].y <= 1 ? 'в этом году' : `через ${years(nextFinds[0].y)}`} (
-            {SHORT_HINT[nextFinds[0].i]}).
-          </div>
-        )}
       </Card>
 
       <Card title="Поход">

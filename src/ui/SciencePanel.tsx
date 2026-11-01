@@ -11,7 +11,8 @@ function effectText(i: number, level: number): string {
   return `${SCIENCE_INFO[i].effect} +${Math.round((multAt(i, level) - 1) * 100)}%`;
 }
 
-export function SciencePanel({ game, me, draft, setDraft, fc }: PanelProps) {
+/** Ручное распределение учёных по наукам — общее для «Приказов» и «Подробно». */
+export function ScienceRows({ game, me, draft, setDraft, fc }: PanelProps) {
   const total = Math.max(0, fc.scientists);
   const cpc = game.cellsPerCountry;
   const ptsPer = B.ptsPerSci * sciMult(me, S_SCI); // очков от одного учёного в год
@@ -29,45 +30,43 @@ export function SciencePanel({ game, me, draft, setDraft, fc }: PanelProps) {
     });
 
   return (
-    <div className="panel-body">
-      <Card
-        title={`Учёные · ${fmtShort(total)}`}
-        right={
-          <span className="sci-top-buttons">
-            <button
-              className="link"
-              onClick={() => setDraft((o) => ({ ...o, scienceAlloc: o.scienceAlloc.map(() => 100 / o.scienceAlloc.length) }))}
-            >
-              поровну
-            </button>
-            <button className="link" onClick={() => setDraft((o) => ({ ...o, scienceAlloc: o.scienceAlloc.map(() => 0) }))}>
-              снять всех
-            </button>
-          </span>
-        }
-      >
-        {free > 0 ? (
-          <div className="warn-box">Без дела сидят {fmtShort(free)} учёных — раздайте их по направлениям ниже.</div>
+    <>
+      <div className="sci-bar">
+        {total === 0 ? (
+          <span className="muted small">Учёных пока нет — наймите их, и они появятся здесь.</span>
+        ) : free > 0 ? (
+          <span className="warn small">Без дела: {fmtShort(free)} учёных — раздайте их ползунками.</span>
         ) : (
-          <div className="hint first">Все учёные заняты. Нанять ещё — во вкладке «Хозяйство».</div>
+          <span className="muted small">Все {fmtShort(total)} учёных заняты.</span>
         )}
-      </Card>
+        <span className="sci-top-buttons">
+          <button
+            className="link"
+            onClick={() => setDraft((o) => ({ ...o, scienceAlloc: o.scienceAlloc.map(() => 100 / o.scienceAlloc.length) }))}
+          >
+            поровну
+          </button>
+          <button className="link" onClick={() => setDraft((o) => ({ ...o, scienceAlloc: o.scienceAlloc.map(() => 0) }))}>
+            снять всех
+          </button>
+        </span>
+      </div>
 
-      <div className="sci-list">
+      <div className="sci-rows">
         {SCIENCE_INFO.map((s, i) => {
           const L = me.science.level[i];
           const left = Math.max(0, levelCost(L, cpc) - me.science.progress[i]);
           const n = count(i);
           const needFor1 = Math.ceil(left / ptsPer);
-          const years = n > 0 ? Math.ceil(left / (n * ptsPer)) : null;
+          const yrs = n > 0 ? Math.ceil(left / (n * ptsPer)) : null;
           return (
-            <div className={'sci card' + (n > 0 ? ' active' : '')} key={i}>
+            <div className={'sci-row2' + (n > 0 ? ' active' : '')} key={i}>
               <div className="sci-head">
                 <span className="sci-name">
                   {s.name} <span className="sci-level">ур. {L}</span>
                 </span>
                 <span className="small muted">
-                  {years === null ? 'не изучается' : years <= 1 ? 'откроют в этом году' : `откроют через ${yearsText(years)}`}
+                  {yrs === null ? 'не изучается' : yrs <= 1 ? 'откроют в этом году' : `откроют через ${yearsText(yrs)}`}
                 </span>
               </div>
               <div className="sci-effect muted small">
@@ -80,7 +79,7 @@ export function SciencePanel({ game, me, draft, setDraft, fc }: PanelProps) {
                   className="btn small"
                   title={`Нужно ${fmtShort(needFor1)} учёных`}
                   onClick={() => setCount(i, needFor1)}
-                  disabled={free <= 0 && n >= needFor1}
+                  disabled={total === 0 || (free <= 0 && n >= needFor1)}
                 >
                   За 1 год
                 </button>
@@ -89,6 +88,16 @@ export function SciencePanel({ game, me, draft, setDraft, fc }: PanelProps) {
           );
         })}
       </div>
+    </>
+  );
+}
+
+export function SciencePanel(props: PanelProps) {
+  return (
+    <div className="panel-body">
+      <Card title={`Учёные · ${fmtShort(props.fc.scientists)}`}>
+        <ScienceRows {...props} />
+      </Card>
     </div>
   );
 }
