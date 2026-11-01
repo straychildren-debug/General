@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { maxRecruits } from '../core/balance';
+import { maxRecruits, recruitCost, type RecruitKind } from '../core/balance';
 import { battleOdds } from '../core/estimate';
 import { fmtShort, years } from '../core/format';
 import { estimate } from '../core/intel';
@@ -17,8 +17,89 @@ interface Props extends PanelProps {
   onTab: (tab: string) => void;
 }
 
+/**
+ * Найм в два шага: выбрать количество (25/50/100% или ползунок) и нажать «Нанять».
+ * После подтверждения видно, что именно куплено, — можно изменить или отменить.
+ */
+function HireBox({
+  kind,
+  have,
+  pop,
+  max,
+  value,
+  onChange,
+  unit,
+  arrive,
+}: {
+  kind: RecruitKind;
+  have: number;
+  pop: number;
+  max: number;
+  value: number;
+  onChange: (v: number) => void;
+  unit: string;
+  arrive: string;
+}) {
+  const [pick, setPick] = useState(0);
+  if (value > 0) {
+    return (
+      <div className="hired">
+        <div>
+          <b className="pos">✓ Нанимаем {fmtShort(value)}</b> {unit} за {fmtShort(recruitCost(kind, have, pop, value))}
+          <div className="muted small">{arrive}</div>
+        </div>
+        <span className="hired-buttons">
+          <button
+            className="btn small"
+            onClick={() => {
+              setPick(value);
+              onChange(0);
+            }}
+          >
+            Изменить
+          </button>
+          <button className="btn small ghost" onClick={() => onChange(0)}>
+            Отменить
+          </button>
+        </span>
+      </div>
+    );
+  }
+  const n = Math.min(pick, max);
+  return (
+    <>
+      <Amount
+        max={max}
+        value={n}
+        unit={unit}
+        onChange={setPick}
+        extra={n > 0 ? `за ${fmtShort(recruitCost(kind, have, pop, n))}` : undefined}
+        action={
+          <button className="btn primary buy" onClick={() => onChange(n)} disabled={n <= 0} title={n > 0 ? '' : 'Сначала выберите, сколько'}>
+            Нанять
+          </button>
+        }
+      />
+    </>
+  );
+}
+
 /** Кнопки 25% / 50% / 100% от максимума и ползунок для точного числа. */
-function Amount({ max, value, onChange, unit }: { max: number; value: number; onChange: (v: number) => void; unit: string }) {
+function Amount({
+  max,
+  value,
+  onChange,
+  unit,
+  action,
+  extra,
+}: {
+  max: number;
+  value: number;
+  onChange: (v: number) => void;
+  unit: string;
+  action?: React.ReactNode;
+  extra?: string;
+}) {
   const v = Math.max(0, Math.min(max, value));
   const step = max > 100000 ? 1000 : 100;
   const at = (f: number) => (f === 1 ? max : Math.floor((max * f) / step) * step);
@@ -30,6 +111,7 @@ function Amount({ max, value, onChange, unit }: { max: number; value: number; on
             {f * 100}%
           </button>
         ))}
+        {action}
       </div>
       <Slider value={v} min={0} max={Math.max(1, max)} step={step} onChange={onChange} />
       <div className="amount-foot muted small">
@@ -37,6 +119,7 @@ function Amount({ max, value, onChange, unit }: { max: number; value: number; on
           {v > 0 ? (
             <>
               <b className="amount-val">{fmtShort(v)}</b> {unit}
+              {extra && <> {extra}</>}
             </>
           ) : (
             'нисколько'
@@ -174,7 +257,16 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
       <ForecastCard me={me} fc={fc} compact />
 
       <Card title="Солдаты" right={<span className="muted">сейчас {fmtShort(me.soldiers)}</span>}>
-        <Amount max={maxS} value={draft.hireSoldiers} unit="новобранцев" onChange={(v) => setDraft((o) => ({ ...o, hireSoldiers: v }))} />
+        <HireBox
+          kind="soldier"
+          have={me.soldiers}
+          pop={pop}
+          max={maxS}
+          value={Math.max(0, draft.hireSoldiers)}
+          unit="солдат"
+          arrive="придут к концу года (в боях этого года не участвуют)"
+          onChange={(v) => setDraft((o) => ({ ...o, hireSoldiers: v }))}
+        />
         <div className="load">
           <div className="load-text">
             Жалованье армии и учёных: <b className={loadTone}>{Math.round(load * 100)}% дохода</b>
@@ -209,27 +301,23 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
                   <div className="warn-box">Нет свободного генерала — купите генерала ниже.</div>
                 ) : (
                   <>
-                    <Amount max={avail} value={army} unit="солдат" onChange={(v) => setPick({ t: tgt, v })} />
-                    <div className="attack-sum">
-                      <span>
-                        Ведёт {gen.name}
-                      </span>
+                    <Amount max={avail} value={army} unit="солдат" extra={`· ведёт ${gen.name}`} onChange={(v) => setPick({ t: tgt, v })} />
+                    {treatyBetween(game, me.id, tgt) && (
+                      <div className="warn-box">У нас договор с этой страной — нападение будет предательством: честь упадёт, и с вами долго никто не будет договариваться.</div>
+                    )}
+                    <div className="attack-row">
                       {odds && (
                         <span>
                           Шанс: <b className={chanceWord(odds.p).tone}>{chanceWord(odds.p).text}</b>
                         </span>
                       )}
-                    </div>
-                    {treatyBetween(game, me.id, tgt) && (
-                      <div className="warn-box">У нас договор с этой страной — нападение будет предательством: честь упадёт, и с вами долго никто не будет договариваться.</div>
-                    )}
-                    <button className="btn primary wide" onClick={send} disabled={army <= 0}>
-                      {treatyBetween(game, me.id, tgt) ? 'Нарушить договор и напасть' : `Отправить в поход на ${game.countries[tgt].name}`}
-                    </button>
-                    <button className="link dip-link" onClick={() => onDiplomacy(tgt)}>
-                      или договориться с государством {game.countries[tgt].name} →
-                    </button>
-                  </>
+                      <button className="btn primary" onClick={send} disabled={army <= 0}>
+                        {treatyBetween(game, me.id, tgt) ? 'Нарушить договор и напасть' : 'В поход!'}
+                      </button>
+                      <button className="link" onClick={() => onDiplomacy(tgt)}>
+                        договориться
+                      </button>
+                    </div>                  </>
                 )}
               </div>
             )}
@@ -267,7 +355,16 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
       </div>
       <div className="ocol">
       <Card title="Наука" right={<span className="muted">учёных {fmtShort(fc.scientists)}</span>}>
-        <Amount max={maxSc} value={draft.hireScientists} unit="учёных" onChange={(v) => setDraft((o) => ({ ...o, hireScientists: v }))} />
+        <HireBox
+          kind="scientist"
+          have={me.scientists}
+          pop={pop}
+          max={maxSc}
+          value={Math.max(0, draft.hireScientists)}
+          unit="учёных"
+          arrive="приступят к работе сразу"
+          onChange={(v) => setDraft((o) => ({ ...o, hireScientists: v }))}
+        />
         <div className="sci-in-orders">
           <ScienceRows game={game} geo={geo} me={me} draft={draft} setDraft={setDraft} fc={fc} onSelect={onSelect} compact />
         </div>

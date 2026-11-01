@@ -1825,7 +1825,7 @@ details.more-inline summary {
 
 /* «Воздух» в «Приказах»: отступы растут с высотой экрана (768px — плотно, 1080px и выше — просторно) */
 .panel-body.orders {
-  --air: clamp(6px, calc(6px + (100vh - 768px) * 0.045), 22px);
+  --air: clamp(6px, calc(6px + (100vh - 768px) * 0.04), 19px);
   padding: var(--air);
   gap: var(--air);
 }
@@ -1945,4 +1945,37 @@ details.more-inline summary {
 .attack-form {
   display: flex;
   flex-direction: column;
+}
+.hired {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(95, 211, 122, 0.1);
+  border: 1px solid rgba(95, 211, 122, 0.4);
+  font-size: 13.5px;
+}
+.hired-buttons {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+.btn.buy {
+  margin-top: 4px;
+}
+
+.attack-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.attack-row .btn.primary {
+  flex: 1;
+}
+.choice .btn.buy {
+  flex: 1.3;
 }
