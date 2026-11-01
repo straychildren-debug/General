@@ -52,8 +52,8 @@ export function attackOpportunity(state: GameState, geo: Geo, a: number, t: numb
   const p = clamp(0.5 + (ratio - 1) / (2 * (0.12 + it.err)), 0, 1);
   const income = annualIncome(state, geo, a);
   const cellValue = (income / Math.max(1, c.cells)) * 10;
-  const cells = captureAmount(state.cellsPerCountry, tc.cells, g, ratio, 0.5);
   const lw = battleLosses(Math.min(ratio, 1 / Math.max(0.01, ratio)));
+  const cells = captureAmount(state.cellsPerCountry, tc.cells, g, ratio, 0.5, s * (1 - lw.win), it.population / Math.max(1, tc.cells));
   const soldierValue = recruitPrice('soldier', c.soldiers, c.population) + B.soldierUpkeep * 2;
   const lossCost = s * (p * lw.win + (1 - p) * lw.lose) * soldierValue;
   return { ev: p * cells * cellValue - lossCost, p, ratio };

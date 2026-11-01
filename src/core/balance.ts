@@ -48,6 +48,7 @@ export const B = {
   noGeneral: 0.5,
   battleRand: 0.12,
   captureBase: 0.025,
+  occupyFrac: 0.12, // чтобы удержать клетку, нужно солдат ≈ 12% её жителей
   elimFrac: 0.07,
 };
 
@@ -243,10 +244,20 @@ export function maxRecruits(kind: RecruitKind, have: number, pop: number, money:
  * побеждённой страны (крупную державу можно добить за разумное число побед).
  * Разгром (перевес втрое и больше) — вдвое больше земли.
  */
-export function captureAmount(cpc: number, defCells: number, g: General, ratio: number, rand01: number): number {
+export function captureAmount(
+  cpc: number,
+  defCells: number,
+  g: General,
+  ratio: number,
+  rand01: number,
+  survivors: number,
+  popPerCell: number,
+): number {
   const size = Math.max(1, Math.sqrt(defCells / cpc));
   const rout = ratio >= 3 ? 2 : 1;
   const n = captureCount(cpc, g, ratio, rand01) * size * rout;
   const cap = Math.max(cpc * 0.25, defCells * 0.2) * rout;
-  return Math.min(defCells, Math.round(Math.min(cap, n)));
+  // Землю надо занять и удержать: небольшой отряд много не возьмёт
+  const occupy = Math.floor(survivors / Math.max(1, popPerCell * B.occupyFrac));
+  return Math.max(0, Math.min(defCells, occupy, Math.round(Math.min(cap, n))));
 }

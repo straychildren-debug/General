@@ -452,7 +452,8 @@ function siegeBattle(
   let eliminated = false;
   if (attackerWon) {
     const before = def.cells;
-    const n = captureAmount(s.cellsPerCountry, def.cells, a.gen, A / D, rng.next());
+    // a.soldiers здесь — уже уцелевшие после боя: они и занимают землю
+    const n = captureAmount(s.cellsPerCountry, def.cells, a.gen, A / D, rng.next(), a.soldiers, def.population / Math.max(1, def.cells));
     const res = capture(s, rng, att, def, n);
     cellsTaken = res.taken;
     capitalTaken = res.capital;

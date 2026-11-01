@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { maxRecruits, recruitCost, type RecruitKind } from '../core/balance';
+import { battleLosses, captureAmount, maxRecruits, recruitCost, type RecruitKind } from '../core/balance';
 import { battleOdds } from '../core/estimate';
 import { fmtShort, years } from '../core/format';
 import { estimate } from '../core/intel';
@@ -181,6 +181,13 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
   const [pick, setPick] = useState<{ t: number | null; v: number } | null>(null);
   const army = Math.min(avail, pick && pick.t === tgt ? pick.v : round100(avail * 0.5));
   const odds = tgt != null && gen && army > 0 ? battleOdds(game, geo, me.id, tgt, gen, army) : null;
+  // Сколько земли удастся занять при победе: решают перевес, скорость генерала и число уцелевших солдат
+  const expectCells = (() => {
+    if (!odds || tgt == null || !gen) return 0;
+    const tc = game.countries[tgt];
+    const surv = army * (1 - battleLosses(Math.min(odds.ratio, 1 / Math.max(0.01, odds.ratio))).win);
+    return captureAmount(game.cellsPerCountry, tc.cells, gen, odds.ratio, 0.5, surv, tc.population / Math.max(1, tc.cells));
+  })();
   const formRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (tgt != null) formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -309,6 +316,7 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
                       {odds && (
                         <span>
                           Шанс: <b className={chanceWord(odds.p).tone}>{chanceWord(odds.p).text}</b>
+                          {expectCells > 0 && <span className="muted small"> · займём ≈{expectCells} кл.</span>}
                         </span>
                       )}
                       <button className="btn primary" onClick={send} disabled={army <= 0}>

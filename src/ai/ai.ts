@@ -250,8 +250,9 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
     const ratio = Math.max(0.01, (s * per) / tg.D);
     const rr = Math.min(ratio, 1 / ratio);
     const tCells = Math.max(1, cellsNow ?? tc.cells);
-    const cells = captureAmount(cpc, tCells, g, ratio, 0.5);
     const lw = battleLosses(rr);
+    const survivors = s * (1 - lw.win * lossMod(g));
+    const cells = captureAmount(cpc, tCells, g, ratio, 0.5, survivors, it.population / Math.max(1, tc.cells));
     const lossFrac = p * lw.win + (1 - p) * lw.lose;
     const lossCost = s * lossFrac * lossMod(g) * soldierValue;
     // Уничтожение соседа: забираем всё и избавляемся от угрозы навсегда
@@ -514,7 +515,8 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
     const lw = battleLosses(Math.min(ratio, 1 / ratio));
     curD.set(best.target, D * (1 - (best.p * lw.lose + (1 - best.p) * lw.win)));
     const tc = state.countries[best.target];
-    curCells.set(best.target, curCells.get(best.target)! - best.p * captureAmount(cpc, tc.cells, best.gen, ratio, 0.5));
+    const surv = best.soldiers * (1 - lw.win);
+    curCells.set(best.target, curCells.get(best.target)! - best.p * captureAmount(cpc, tc.cells, best.gen, ratio, 0.5, surv, tc.population / Math.max(1, tc.cells)));
   }
   // ── Остальные генералы: оборона и учёба ──
   for (const g of generals) {
