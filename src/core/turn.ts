@@ -325,6 +325,7 @@ function fieldBattle(
   if (rng.chance(0.1)) {
     removeGeneral(s.countries[loser.country], loser.gen);
     generalLost = aWon ? 'defender' : 'attacker';
+    note(report, s.countries[loser.country], `Генерал ${loser.gen.name} погиб в бою в возрасте ${loser.gen.age} лет`, false);
   }
   report.battles.push({
     attacker: a.country,
@@ -430,9 +431,11 @@ function siegeBattle(
   if (!attackerWon && rng.chance(0.08)) {
     removeGeneral(att, a.gen);
     generalLost = 'attacker';
+    note(report, att, `Генерал ${a.gen.name} погиб в бою в возрасте ${a.gen.age} лет`, false);
   } else if (attackerWon && dg && rng.chance(0.06)) {
     removeGeneral(def, dg);
     generalLost = 'defender';
+    note(report, def, `Генерал ${dg.name} погиб в бою, защищая родину, в возрасте ${dg.age} лет`, false);
   }
 
   let cellsTaken = 0;
@@ -758,15 +761,13 @@ function yearEconomy(s: GameState, geo: Geo, harvestMult: Map<number, number>, r
         note(report, c, `Генерал ${g.name} учился: +${gain.toFixed(1)} опыта (теперь ${Math.round(g.exp)})`, true);
       }
       g.age++;
+      // Смерть от старости: чем ближе к пределу возраста, тем вероятнее; от болезни — в любом возрасте
       const ra = retireAge(g);
-      let leave = false;
-      let died = false;
-      if (g.age >= ra) leave = true;
-      else if (g.age > ra - 12 && rng.chance((g.age - (ra - 12)) * 0.02)) leave = died = true;
-      else if (rng.chance(0.004)) leave = died = true;
-      if (leave) {
+      const oldAge = g.age >= ra || (g.age > ra - 12 && rng.chance((g.age - (ra - 12)) * 0.025));
+      const illness = !oldAge && rng.chance(has(g, 'sickly') ? 0.04 : has(g, 'hardy') ? 0.005 : 0.012);
+      if (oldAge || illness) {
         removeGeneral(c, g);
-        ev(`Генерал ${g.name} ${died ? 'скончался' : 'ушёл на покой'} в возрасте ${g.age} лет`, false);
+        ev(`Генерал ${g.name} умер ${oldAge ? 'от старости' : 'от болезни'} в возрасте ${g.age} лет`, false);
       }
     }
   }

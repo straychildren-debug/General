@@ -148,15 +148,15 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
   })();
 
   return (
-    <div className="panel-body">
+    <div className="panel-body orders">
       <div className={'advisor ' + advice.tone}>
         <b>Советник:</b> {advice.text}
       </div>
-
-      <ForecastCard me={me} fc={fc} />
+      <div className="orders-grid">
+      <div className="ocol">
+      <ForecastCard me={me} fc={fc} compact />
 
       <Card title="Солдаты" right={<span className="muted">сейчас {fmtShort(me.soldiers)}</span>}>
-        <div className="muted small">Нанять (от того, что позволяют деньги)</div>
         <Amount max={maxS} value={draft.hireSoldiers} unit="новобранцев" onChange={(v) => setDraft((o) => ({ ...o, hireSoldiers: v }))} />
         <div className="load">
           <div className="load-text">
@@ -165,15 +165,6 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
           <div className="load-bar">
             <div className={'load-fill ' + loadTone} style={{ width: Math.min(100, load * 100) + '%' }} />
           </div>
-        </div>
-        <div className="hint">Новобранцы придут к концу года. Чем больше армия, тем дороже каждый следующий.</div>
-      </Card>
-
-      <Card title="Наука" right={<span className="muted">учёных {fmtShort(fc.scientists)}</span>}>
-        <div className="muted small">Нанять учёных</div>
-        <Amount max={maxSc} value={draft.hireScientists} unit="учёных" onChange={(v) => setDraft((o) => ({ ...o, hireScientists: v }))} />
-        <div className="sci-in-orders">
-          <ScienceRows game={game} geo={geo} me={me} draft={draft} setDraft={setDraft} fc={fc} onSelect={onSelect} />
         </div>
       </Card>
 
@@ -193,14 +184,13 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
                 );
               })}
             </div>
-            {tgt == null && <div className="hint">Выберите соседа здесь или щёлкните по нему на карте.</div>}
+            {tgt == null && <div className="hint">Выберите соседа или щёлкните по нему на карте.</div>}
             {tgt != null && (
               <div className="attack-form" ref={formRef}>
                 {!gen ? (
                   <div className="warn-box">Нет свободного генерала — купите генерала ниже.</div>
                 ) : (
                   <>
-                    <div className="muted small">Сколько солдат послать</div>
                     <Amount max={avail} value={army} unit="солдат" onChange={(v) => setPick({ t: tgt, v })} />
                     <div className="attack-sum">
                       <span>
@@ -249,15 +239,25 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
         )}
       </Card>
 
+
+      </div>
+      <div className="ocol">
+      <Card title="Наука" right={<span className="muted">учёных {fmtShort(fc.scientists)}</span>}>
+        <Amount max={maxSc} value={draft.hireScientists} unit="учёных" onChange={(v) => setDraft((o) => ({ ...o, hireScientists: v }))} />
+        <div className="sci-in-orders">
+          <ScienceRows game={game} geo={geo} me={me} draft={draft} setDraft={setDraft} fc={fc} onSelect={onSelect} compact />
+        </div>
+      </Card>
+
       <Card title={`Генералы · ${generals.length}`} right={<button className="link" onClick={() => setBuying(!buying)}>{buying ? 'скрыть' : 'купить генерала'}</button>}>
         <div className="glist">
           {generals.map((g) => {
             const t = taskOf(g);
-            const role = t.type === 'attack' ? `в походе на ${game.countries[t.target]?.name}` : t.type === 'defend' ? 'командует обороной' : 'учится';
+            const role = t.type === 'attack' ? `в походе на ${game.countries[t.target]?.name}` : t.type === 'defend' ? 'оборона' : 'учится';
             return (
               <div className="gline" key={g.id}>
                 <span>
-                  <b>{g.name}</b> <span className="muted small">опыт {Math.round(g.exp)}</span>
+                  <b>{g.name}</b> <span className="muted small">{g.age} лет · опыт {Math.round(g.exp)}</span>
                 </span>
                 <span className="muted small">{role}</span>
               </div>
@@ -274,7 +274,7 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
                   <div className="grow-main">
                     <b>{g.name}</b>
                     <div className="muted small">
-                      опыт {Math.round(g.exp)} · скорость {g.speed} · ум {g.intellect}
+                      {g.age} лет · опыт {Math.round(g.exp)} · скорость {g.speed} · ум {g.intellect}
                     </div>
                   </div>
                   <button className={on ? 'btn small on' : 'btn small'} onClick={() => toggleBuy(g.id)}>
@@ -285,10 +285,9 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
             })}
           </div>
         )}
-        <div className="hint">Генералы назначаются сами: лучший командует обороной, остальные учатся.</div>
       </Card>
-
-      <div className="hint center">Точная настройка (числа, увольнение, укрепления) — во вкладке «Подробно».</div>
+      </div>
+      </div>
     </div>
   );
 }
