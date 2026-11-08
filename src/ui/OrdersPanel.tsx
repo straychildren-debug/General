@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { B, levelCost, maxRecruits, multAt, recruitCost, sciMult, SCIENCE_INFO, type RecruitKind } from '../core/balance';
 import { battleOdds } from '../core/estimate';
+import { forecast } from '../core/econ';
 import { fmtShort, fmtSigned, years } from '../core/format';
 import { estimate } from '../core/intel';
 import { S_DENS, S_MIL, S_SCI, type General, type GeneralTask } from '../core/types';
@@ -292,14 +293,22 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
   const pendCost = recruitCost('soldier', me.soldiers, pop, pendS) + recruitCost('scientist', me.scientists, pop, pendSc);
   const income = fc.taxes + fc.saleRevenue;
   const load = fc.upkeep / Math.max(1, income);
-  const loadAfter = (fc.upkeep + pendSalary) / Math.max(1, income);
+
   const trouble = fc.unfed > 0 || fc.unpaid > 0;
   const toneOf = (x: number): Tone => (x > 0.95 ? 'neg' : x > 0.7 ? 'warn' : 'pos');
   const loadTone: Tone = trouble ? 'neg' : toneOf(load);
 
   // ── Прогноз ──
-  const dMoney = fc.moneyEnd - me.money;
-  const moneyAfterPick = fc.moneyEnd - pendCost - pendSalary;
+  const loadAfter = (fc.upkeep + pendSalary) / Math.max(1, income);
+  // Точный прогноз «если нанять выбранных» — тем же расчётом, что и после нажатия «Нанять»
+  const fcPick =
+    pendS > 0 || pendSc > 0
+      ? forecast(game, geo, me, { ...draft, hireSoldiers: draft.hireSoldiers || pendS, hireScientists: draft.hireScientists || pendSc })
+      : null;
+  const moneyAfterPick = fcPick ? fcPick.moneyEnd : fc.moneyEnd;
+  // Найм и покупки оплачиваются сразу — казна уменьшается, как только нажали «Нанять»
+  const cashNow = me.money - fc.spend;
+  const cashAfterPick = cashNow - pendCost;
   const dPop = fc.popEnd - fc.population;
   const atCap = me.population >= fc.maxPop * 0.995;
   const willCap = !atCap && fc.popEnd >= fc.maxPop - 1;
@@ -422,17 +431,18 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
             </Ring>
           }
           label="Казна"
-          main={fmtShort(me.money)}
+          main={fmtShort(pendCost > 0 ? cashAfterPick : cashNow)}
+          mainTone={cashNow < 0 || cashAfterPick < 0 ? 'neg' : pendCost > 0 ? 'warn' : undefined}
           sub={
             pendCost + pendSalary > 0 ? (
               <span className="warn">→ {fmtShort(moneyAfterPick)}</span>
             ) : (
-              <span className={dMoney >= 0 ? 'pos' : 'neg'}>→ {fmtShort(fc.moneyEnd)}</span>
+              <span className={fc.moneyEnd >= cashNow ? 'pos' : 'neg'}>→ {fmtShort(fc.moneyEnd)}</span>
             )
           }
           onClick={() => setMoneyOpen(!moneyOpen)}
           on={moneyOpen}
-          title={`К концу года: ${fmtShort(fc.moneyEnd)} (${fmtSigned(dMoney)})${pendCost + pendSalary > 0 ? `, с выбранным наймом — ${fmtShort(moneyAfterPick)}` : ''}. Нажмите — откуда деньги.`}
+          title={`Сейчас в казне ${fmtShort(cashNow)}${fc.spend > 0 ? ` (было ${fmtShort(me.money)}, на найм и покупки ушло ${fmtShort(fc.spend)})` : ''}${pendCost > 0 ? `; если нанять выбранных — останется ${fmtShort(cashAfterPick)}` : ''}. К концу года: ${fmtShort(pendCost + pendSalary > 0 ? moneyAfterPick : fc.moneyEnd)}. Нажмите — откуда деньги.`}
         />
         <Tile
           ring={

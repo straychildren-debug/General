@@ -253,7 +253,12 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         </div>
         {me && fc && (
           <div className="stats">
-            <Stat label="Деньги" value={fmtShort(me.money)} sub={fmtSigned(fc.moneyEnd - me.money) + ' за год'} subTone={fc.moneyEnd >= me.money ? 'pos' : 'neg'} />
+            <Stat
+              label="Деньги"
+              value={fmtShort(me.money - fc.spend)}
+              sub={fmtSigned(fc.moneyEnd - (me.money - fc.spend)) + ' за год'}
+              subTone={fc.moneyEnd >= me.money - fc.spend ? 'pos' : 'neg'}
+            />
             <Stat label="Население" value={fmtShort(me.population)} sub={fmtSigned(fc.popEnd - me.population) + ' за год'} subTone={fc.popEnd >= me.population ? 'pos' : 'neg'} />
 
             <Stat label="Солдаты" value={fmtShort(me.soldiers)} />
