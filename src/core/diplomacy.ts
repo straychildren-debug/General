@@ -1,6 +1,6 @@
 // Дипломатия: договоры, отношения между странами и честь.
 import { fmtShort, years as yearsText } from './format';
-import type { Deal, GameState, Orders, Treaty, YearReport } from './types';
+import { SCIENCE_COUNT, type Deal, type GameState, type Orders, type Treaty, type YearReport } from './types';
 
 export const DIP = {
   betrayHonor: 70, // потеря чести за нападение на партнёра по договору (100 → 30: ~10 лет опалы)
@@ -22,6 +22,14 @@ export function ensureDiplomacy(s: GameState): GameState {
   if (!s.relations || s.relations.length !== n * n) s.relations = new Array(n * n).fill(0);
   if (!s.honor || s.honor.length !== n) s.honor = new Array(n).fill(100);
   s.nextDealId ??= 1;
+  // Науки «Фортификация» и «Разведка» убраны: в старых сохранениях их было 8
+  for (const c of s.countries) {
+    if (c.science.level.length > SCIENCE_COUNT) {
+      c.science.level = c.science.level.slice(0, SCIENCE_COUNT);
+      c.science.progress = c.science.progress.slice(0, SCIENCE_COUNT);
+      c.science.alloc = c.science.alloc.slice(0, SCIENCE_COUNT);
+    }
+  }
   return s;
 }
 

@@ -1,13 +1,11 @@
-import { B, intelError, levelCost, multAt, sciMult, SCIENCE_INFO } from '../core/balance';
+import { B, levelCost, multAt, sciMult, SCIENCE_INFO } from '../core/balance';
 import { fmtShort, years as yearsText } from '../core/format';
-import { S_FORT, S_INTEL, S_MIL, S_SCI } from '../core/types';
+import { S_MIL, S_SCI } from '../core/types';
 import { Card, Slider, type PanelProps } from './common';
 
 /** Коротко: что даёт уровень. */
 function effectText(i: number, level: number): string {
-  if (i === S_INTEL) return `разведка ±${Math.round(intelError(level) * 75)}%`;
   if (i === S_MIL) return `атака +${level * 10}%`;
-  if (i === S_FORT) return `оборона +${Math.round((multAt(i, level) - 1) * 100)}%`;
   return `${SCIENCE_INFO[i].effect} +${Math.round((multAt(i, level) - 1) * 100)}%`;
 }
 

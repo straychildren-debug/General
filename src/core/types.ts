@@ -5,9 +5,7 @@ export const S_DENS = 2;
 export const S_GROW = 3;
 export const S_MIL = 4;
 export const S_SCI = 5;
-export const S_FORT = 6;
-export const S_INTEL = 7;
-export const SCIENCE_COUNT = 8;
+export const SCIENCE_COUNT = 6; // как в оригинале: деньги, урожай, плотность, рост, военная мощь, наука
 
 // Типы местности
 export const TER_WATER = 0;
@@ -152,7 +150,6 @@ export interface BattleDetails {
   def: BattleSide & {
     terrain: number;
     fort: number; // уровень укреплений
-    fortSci: number;
     front: number; // доля гарнизона на этом участке границы
     total: number; // весь гарнизон страны
     militia: number;

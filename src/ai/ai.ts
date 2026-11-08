@@ -12,7 +12,6 @@ import {
   lossMod,
   maxRecruits,
   milDefAt,
-  multAt,
   recruitCost,
   recruitPrice,
   morale,
@@ -31,9 +30,7 @@ import {
   S_AGRI,
   S_DENS,
   S_ECON,
-  S_FORT,
   S_GROW,
-  S_INTEL,
   S_MIL,
   S_SCI,
   SCIENCE_COUNT,
@@ -73,11 +70,11 @@ interface Persona {
 }
 
 const PERSONA: Record<PersonalityId, Persona> = {
-  aggressor: { aggression: 1.4, caution: 0.9, science: 0.85, opportunism: 1.0, milShare: 0.6, winThr: 0.62, sciW: [1, 1, 1, 1, 1.5, 1, 0.8, 1] },
-  scientist: { aggression: 0.8, caution: 1.15, science: 1.4, opportunism: 0.8, milShare: 0.38, winThr: 0.78, sciW: [1, 1, 1, 1, 0.9, 1.3, 1.1, 1] },
-  merchant: { aggression: 0.85, caution: 1.1, science: 1.1, opportunism: 0.9, milShare: 0.4, winThr: 0.75, sciW: [1.4, 1.2, 1, 1, 0.9, 1, 1.1, 1] },
-  cunning: { aggression: 1.05, caution: 1.0, science: 1.0, opportunism: 1.7, milShare: 0.48, winThr: 0.7, sciW: [1, 1, 1, 1, 1.1, 1, 1, 1.6] },
-  balanced: { aggression: 1.0, caution: 1.0, science: 1.0, opportunism: 1.0, milShare: 0.48, winThr: 0.7, sciW: [1, 1, 1, 1, 1, 1, 1, 1] },
+  aggressor: { aggression: 1.4, caution: 0.9, science: 0.85, opportunism: 1.0, milShare: 0.6, winThr: 0.62, sciW: [1, 1, 1, 1, 1.5, 1] },
+  scientist: { aggression: 0.8, caution: 1.15, science: 1.4, opportunism: 0.8, milShare: 0.38, winThr: 0.78, sciW: [1, 1, 1, 1, 0.9, 1.3] },
+  merchant: { aggression: 0.85, caution: 1.1, science: 1.1, opportunism: 0.9, milShare: 0.4, winThr: 0.75, sciW: [1.4, 1.2, 1, 1, 0.9, 1] },
+  cunning: { aggression: 1.05, caution: 1.0, science: 1.0, opportunism: 1.7, milShare: 0.48, winThr: 0.7, sciW: [1, 1, 1, 1, 1.1, 1] },
+  balanced: { aggression: 1.0, caution: 1.0, science: 1.0, opportunism: 1.0, milShare: 0.48, winThr: 0.7, sciW: [1, 1, 1, 1, 1, 1] },
 };
 
 export const PERSONALITY_NAMES: Record<PersonalityId, string> = {
@@ -158,7 +155,7 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
   const myMil = sciMult(c, S_MIL);
   const myMorale = morale(c.happiness);
   const myDefPer = (n: number) =>
-    milDefAt(c.science.level[S_MIL]) * frontFactorGeo(geo, n, id) * defendFactor(defGen) * borderDefense(geo, n, id) * (1 + (c.forts[n] ?? 0) * B.fortBonus) * sciMult(c, S_FORT) * myMorale;
+    milDefAt(c.science.level[S_MIL]) * frontFactorGeo(geo, n, id) * defendFactor(defGen) * borderDefense(geo, n, id) * (1 + (c.forts[n] ?? 0) * B.fortBonus) * myMorale;
   // Затишье: давно не воевали и казна полна — пора рискнуть
   let lastWar = 99;
   for (const rep of state.reports)
@@ -232,7 +229,6 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
       (it.generals > 0 ? genFactor(it.bestExp) : B.noGeneral) *
       bd *
       (1 + (it.forts[id] ?? 0) * B.fortBonus) *
-      multAt(S_FORT, it.levels[S_FORT]) *
       morale(it.happiness);
     const outFrac = Math.min(0.4, 0.1 * (attacksBy.get(t) ?? 0)) * sk.opp;
     const jackal = Math.min(3, attackedLastYear.get(t) ?? 0);
@@ -379,8 +375,6 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
     const milNeed = 0.6 + 0.4 * ps.aggression + (attackedRecently ? 0.5 : 0);
     v[S_MIL] = rel(S_MIL) * c.soldiers * (B.soldierUpkeep + soldierPrice * 0.25) * milNeed;
     v[S_SCI] = rel(S_SCI) * c.scientists * B.sciUpkeep * 1.1;
-    v[S_FORT] = rel(S_FORT) * c.soldiers * B.soldierUpkeep * 0.5 * clamp(defNeed / Math.max(1, c.soldiers), 0.2, 1.5);
-    v[S_INTEL] = (c.science.level[S_INTEL] < 7 ? 0.08 : 0.01) * c.soldiers * B.soldierUpkeep * ps.opportunism;
     const vpp = v.map(
       (x, i) => (x * ps.sciW[i] * H * jit()) / Math.max(1, levelCost(c.science.level[i], cpc) - c.science.progress[i]),
     );

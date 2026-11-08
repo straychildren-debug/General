@@ -1,6 +1,6 @@
-import { intelError } from './balance';
+import { INTEL_ERROR } from './balance';
 import { hash01 } from './rng';
-import { S_INTEL, type GameState } from './types';
+import type { GameState } from './types';
 
 /**
  * То, что одна страна знает о другой.
@@ -23,10 +23,9 @@ export interface Intel {
   forts: Record<number, number>;
 }
 
-export function intelErrorFor(state: GameState, observer: number, target: number): number {
+export function intelErrorFor(_state: GameState, observer: number, target: number): number {
   if (observer === target) return 0;
-  const L = state.countries[observer].science.level[S_INTEL];
-  return intelError(L) * 0.75; // сведения бывают только о соседях
+  return INTEL_ERROR;
 }
 
 export function estimate(state: GameState, observer: number, target: number, neighbor: boolean): Intel {

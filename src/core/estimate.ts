@@ -1,9 +1,9 @@
 // Оценка шансов атаки по данным разведки — тот же расчёт, которым пользуется компьютер.
-import { attackFactor, B, genFactor, milDefAt, morale, multAt, sciMult } from './balance';
+import { attackFactor, B, genFactor, milDefAt, morale, sciMult } from './balance';
 import { borderDefense, frontFactorGeo, type Geo } from './geo';
 import { estimate } from './intel';
 import { hash01 } from './rng';
-import { S_FORT, S_MIL, type GameState, type General } from './types';
+import { S_MIL, type GameState, type General } from './types';
 
 export interface Odds {
   p: number; // вероятность победы
@@ -29,7 +29,6 @@ export function battleOdds(
     (it.generals > 0 ? genFactor(it.bestExp) : B.noGeneral) *
     borderDefense(geo, me, target) *
     (1 + (it.forts[me] ?? 0) * B.fortBonus) *
-    multAt(S_FORT, it.levels[S_FORT]) *
     morale(it.happiness);
   const A = soldiers * sciMult(c, S_MIL) * attackFactor(gen) * morale(c.happiness);
   const R = B.battleRand;

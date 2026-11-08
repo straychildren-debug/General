@@ -149,11 +149,6 @@ export function BattleDetail({ game, b, viewer }: { game: GameState; b: BattleRe
                   <td>—</td>
                   <td>{det.def.fort ? `${det.def.fort} ур. ${x(1 + det.def.fort * 0.1)}` : 'нет'}</td>
                 </tr>
-                <tr>
-                  <td>Фортификация</td>
-                  <td>—</td>
-                  <td>{x(det.def.fortSci)}</td>
-                </tr>
               </>
             )}
             <tr className="total">

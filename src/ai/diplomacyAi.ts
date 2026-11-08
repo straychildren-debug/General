@@ -8,7 +8,6 @@ import {
   genFactor,
   milDefAt,
   morale,
-  multAt,
   recruitPrice,
   sciMult,
 } from '../core/balance';
@@ -18,7 +17,7 @@ import { fmtShort } from '../core/format';
 import { areNeighbors, borderDefense, computeGeo, frontFactorGeo, type Geo } from '../core/geo';
 import { estimate } from '../core/intel';
 import { hash01, Rng } from '../core/rng';
-import { S_FORT, S_MIL, type Deal, type GameState } from '../core/types';
+import { S_MIL, type Deal, type GameState } from '../core/types';
 
 const clamp = (x: number, a: number, b: number) => Math.max(a, Math.min(b, x));
 
@@ -44,8 +43,7 @@ export function attackOpportunity(state: GameState, geo: Geo, a: number, t: numb
     milDefAt(it.levels[S_MIL]) *
     (it.generals > 0 ? genFactor(it.bestExp) : B.noGeneral) *
     borderDefense(geo, a, t) *
-    (1 + (it.forts[a] ?? 0) * B.fortBonus) *
-    multAt(S_FORT, it.levels[S_FORT]);
+    (1 + (it.forts[a] ?? 0) * B.fortBonus);
   const s = c.soldiers * 0.7;
   const A = s * sciMult(c, S_MIL) * attackFactor(g) * morale(c.happiness);
   const ratio = A / Math.max(1, D);

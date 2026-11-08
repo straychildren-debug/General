@@ -69,7 +69,7 @@ export function WorldPanel({ game, geo, viewer, selected, onSelect }: Props) {
                   <Row label="Учёные" value={approx(selEst.exact) + fmtShort(selEst.scientists)} />
                   <Row label="Казна" value={approx(selEst.exact) + fmtShort(selEst.money)} />
                   <Row label="Генералы" value={`${selEst.generals}, лучший опыт ${approx(selEst.exact)}${Math.round(selEst.bestExp)}`} />
-                  <Row label="Уровни наук" value={selEst.levels.join(' · ')} hint="Деньги · Сельск. хоз. · Плотность · Рост · Военная мощь · Наука · Фортиф. · Разведка" />
+                  <Row label="Уровни наук" value={selEst.levels.join(' · ')} hint="Деньги · Сельск. хоз. · Плотность · Рост · Военная мощь · Наука" />
                   {viewer != null && (selEst.forts[viewer] ?? 0) > 0 && (
                     <Row label="Укрепления против вас" value={`уровень ${selEst.forts[viewer]}`} tone="warn" />
                   )}
@@ -131,8 +131,7 @@ export function WorldPanel({ game, geo, viewer, selected, onSelect }: Props) {
           </tbody>
         </table>
         <div className="hint">
-          О дальних странах известны только территория и население. О соседях — сведения разведки («~»), они тем точнее, чем
-          выше наука «Разведка».
+          О дальних странах известны только территория и население. О соседях — примерные сведения разведки («~», ±25%).
         </div>
       </Card>
     </div>

@@ -59,13 +59,9 @@ export const SCIENCE_INFO = [
   { name: 'Рост населения', step: 0.15, effect: 'скорость роста' },
   { name: 'Военная мощь', step: 0.1, effect: 'сила солдат' },
   { name: 'Научный потенциал', step: 0.1, effect: 'продуктивность учёных' },
-  { name: 'Фортификация', step: 0.04, effect: 'сила обороны' },
-  { name: 'Разведка', step: 0, effect: 'точность сведений' },
 ];
 
 export function multAt(i: number, level: number): number {
-  // Фортификация с убывающей отдачей (предел +30%), иначе поздняя игра упирается в непробиваемую оборону
-  if (i === 6) return 1 + 0.3 * (1 - Math.exp(-level / 9));
   return 1 + SCIENCE_INFO[i].step * level;
 }
 
@@ -88,9 +84,8 @@ export function levelCost(level: number, cpc: number): number {
   return cpc * B.sciCostPerCell * Math.pow(B.sciCostGrowth, level);
 }
 
-export function intelError(level: number): number {
-  return Math.max(0.03, 0.4 * Math.pow(0.82, level));
-}
+/** Погрешность сведений о соседях (разведка как наука убрана — точность постоянная). */
+export const INTEL_ERROR = 0.25;
 
 export function costScale(cpc: number): number {
   return cpc / 170;

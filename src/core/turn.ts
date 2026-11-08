@@ -27,7 +27,6 @@ import { areNeighbors, computeGeo, frontFactor, type Geo } from './geo';
 import { cellX, cellY, neighborTable } from './hex';
 import { Rng } from './rng';
 import {
-  S_FORT,
   S_GROW,
   S_MIL,
   type BattleReport,
@@ -355,7 +354,7 @@ function fieldBattle(
     generalLost,
     details: {
       atk: sideA,
-      def: { ...sideB, terrain: 1, fort: 0, fortSci: 1, front: 1, total: sb, militia: 0 },
+      def: { ...sideB, terrain: 1, fort: 0, front: 1, total: sb, militia: 0 },
       seed: battleSeed,
     },
   });
@@ -410,7 +409,6 @@ function siegeBattle(
     defendFactor(dg) *
     border.defAvg *
     (1 + fort * B.fortBonus) *
-    sciMult(def, S_FORT) *
     morale(def.happiness);
   const militia = def.population * 0.002;
   // На этом участке границы обороняется только часть гарнизона — остальные стерегут другие границы
@@ -487,7 +485,6 @@ function siegeBattle(
         ...sideD,
         terrain: border.defAvg,
         fort,
-        fortSci: sciMult(def, S_FORT),
         front: border.front,
         total: totalGarrison,
         militia: Math.round(militia),
@@ -649,7 +646,7 @@ function rollEvents(s: GameState, rng: Rng, report: YearReport, harvestMult: Map
       }
       case 3: {
         const opts = c.science.alloc.map((a, i) => (a > 0 ? i : -1)).filter((i) => i >= 0);
-        const i = opts.length ? rng.pick(opts) : rng.int(0, 7);
+        const i = opts.length ? rng.pick(opts) : rng.int(0, SCIENCE_INFO.length - 1);
         c.science.progress[i] += 0.6 * levelCost(c.science.level[i], s.cellsPerCountry);
         ev(`Научный прорыв в области «${SCIENCE_INFO[i].name}»`, true);
         break;
