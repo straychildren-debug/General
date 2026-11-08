@@ -125,6 +125,7 @@ export interface Forecast {
   scientistCost: number;
   generalCost: number;
   dipOnce: number; // разовые платежи по договорам
+  onceIn: number; // разовые поступления по принятым сделкам (подарки, откупы нам)
   tribIn: number; // дань, которую получим
   tribOut: number; // дань, которую платим
   spend: number;
@@ -163,6 +164,7 @@ export function forecast(state: GameState, geo: Geo, c: Country, o: Orders): For
   }
   // Дипломатия: разовые платежи по договорённостям и дань этого года
   let dipOnce = 0;
+  let onceIn = 0;
   let tribIn = 0;
   let tribOut = 0;
   const newDeals = [...(o.diplomacy?.deals ?? []), ...(state.offers ?? []).filter((d) => o.diplomacy?.accept?.includes(d.id))];
@@ -170,7 +172,11 @@ export function forecast(state: GameState, geo: Geo, c: Country, o: Orders): For
     if (d.payer === c.id) {
       dipOnce += d.once;
       tribOut += d.kind === 'peace' ? d.yearly : 0;
-    } else if (d.payer != null && (d.from === c.id || d.to === c.id)) tribIn += d.kind === 'peace' ? d.yearly : 0;
+    } else if (d.payer != null && (d.from === c.id || d.to === c.id)) {
+      // Платит другая сторона — если у неё хватает денег, сумма придёт сразу, до найма
+      if (state.countries[d.payer].money >= d.once) onceIn += d.once;
+      tribIn += d.kind === 'peace' ? d.yearly : 0;
+    }
   }
   for (const t of state.treaties ?? []) {
     if (t.start > state.year || t.until < state.year || t.payer == null || !(t.a === c.id || t.b === c.id)) continue;
@@ -179,7 +185,7 @@ export function forecast(state: GameState, geo: Geo, c: Country, o: Orders): For
   }
   const scoutCost = o.scout?.hire && !c.hasScout ? scoutPrice(state.cellsPerCountry, state.year) : 0;
   const spend = hireCost + generalCost + dipOnce + scoutCost;
-  const moneyAfterPurchases = c.money - spend;
+  const moneyAfterPurchases = c.money + onceIn - spend;
 
   const sim: Country = {
     ...c,
@@ -210,6 +216,7 @@ export function forecast(state: GameState, geo: Geo, c: Country, o: Orders): For
     moneyAfterPurchases,
     moneyEnd: st.money - st.unpaid + tribIn - tribOut,
     dipOnce,
+    onceIn,
     tribIn,
     tribOut,
     unfed: st.unfed,

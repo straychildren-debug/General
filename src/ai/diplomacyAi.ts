@@ -149,12 +149,15 @@ export function aiDiplomacy(prev: GameState): GameState {
       if (my.ev > income * 0.3 && my.p > 0.6 && r < 20 && rng.chance(ai.personality === 'aggressor' ? 0.5 : 0.3)) {
         // Ультиматум: плати дань — или нападём
         const hIncome = annualIncome(s, geo, h.id);
-        const yearly = round1000(Math.min(my.ev * 0.4, hIncome * 0.3));
+        // Требуют столько, сколько человек в силах платить (иначе мир сорвётся на первой же выплате)
+        const yearly = round1000(Math.max(1000, Math.min(my.ev * 0.4, hIncome * 0.3, Math.max(0, h.money) * 0.6 + hIncome * 0.15)));
         offer({ from: aiId, to: h.id, kind: 'peace', years: 5, payer: h.id, once: 0, yearly, target: null, ultimatum: true });
         count++;
       } else if (!hLeads && !disgraced(s, h.id) && their.ev > income * 0.25 && their.p > 0.5 && my.ev <= 0 && rng.chance(0.35)) {
         // Боится нас — предлагает мир (изредка с небольшим подарком)
-        const once = their.p > 0.85 && rng.chance(0.4) ? round1000(Math.min(their.ev * 0.1, income * 0.15)) : 0;
+        // Подарок — только из того, что реально есть в казне
+        const gift = Math.floor(Math.min(their.ev * 0.1, income * 0.15, ai.money * 0.4) / 1000) * 1000;
+        const once = their.p > 0.85 && rng.chance(0.4) && gift >= 1000 ? gift : 0;
         offer({ from: aiId, to: h.id, kind: 'peace', years: 5, payer: once > 0 ? aiId : null, once, yearly: 0, target: null, ultimatum: false });
         count++;
       } else if (!hLeads && !disgraced(s, h.id) && r >= -10 && rng.chance(0.25)) {

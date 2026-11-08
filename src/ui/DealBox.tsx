@@ -92,6 +92,7 @@ export function DealBox({
               <b>{d.ultimatum ? 'Требует: ' : 'Предлагает: '}</b>
               {dealText(game, d, me.id)}
               {d.ultimatum && <span className="neg"> — иначе нападёт</span>}
+              {d.payer === me.id && d.yearly > me.money && <span className="neg"> · сейчас в казне меньше — в конце года может не хватить</span>}
             </div>
             <button className={'btn small ' + (on ? 'on' : 'primary')} onClick={() => toggleAccept(d.id)} disabled={!on && cantPay}>
               {on ? 'Принято ✓' : 'Принять'}

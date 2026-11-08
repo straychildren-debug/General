@@ -167,7 +167,10 @@ export function applyDiplomacy(prev: GameState, orders: Record<number, Orders>):
     }
     for (const oid of dip.accept ?? []) {
       const d = s.offers.find((x) => x.id === oid && x.to === id);
-      if (d) applyDeal(s, d, report);
+      if (d && !applyDeal(s, d, report)) {
+        const why = d.payer != null && d.once > 0 && s.countries[d.payer].money < d.once ? ' — не хватило денег на оплату' : '';
+        note(report, s, id, `Сделка с государством ${s.countries[d.from].name} сорвалась${why}`, false);
+      }
     }
     for (const d of dip.deals ?? []) {
       if (d.from !== id) continue;

@@ -255,9 +255,9 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
           <div className="stats">
             <Stat
               label="Деньги"
-              value={fmtShort(me.money - fc.spend)}
-              sub={fmtSigned(fc.moneyEnd - (me.money - fc.spend)) + ' за год'}
-              subTone={fc.moneyEnd >= me.money - fc.spend ? 'pos' : 'neg'}
+              value={fmtShort(me.money + fc.onceIn - fc.spend)}
+              sub={fmtSigned(fc.moneyEnd - (me.money + fc.onceIn - fc.spend)) + ' за год'}
+              subTone={fc.moneyEnd >= me.money + fc.onceIn - fc.spend ? 'pos' : 'neg'}
             />
             <Stat label="Население" value={fmtShort(me.population)} sub={fmtSigned(fc.popEnd - me.population) + ' за год'} subTone={fc.popEnd >= me.population ? 'pos' : 'neg'} />
 
@@ -440,6 +440,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
             )}
             {activeTab === 'orders' && panelProps && (
               <OrdersPanel
+                key={game.year + ':' + viewer}
                 {...panelProps}
                 target={attackTarget}
                 onTarget={onTarget}

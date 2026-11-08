@@ -148,6 +148,13 @@ function Recruit({
   );
 }
 
+/** Тысячи с округлением в нужную сторону: «отправлено» — вниз, «нужно» — вверх, чтобы «10/10» значило «хватает». */
+function fmtK(n: number, dir: 'up' | 'down'): string {
+  if (n <= 0) return '0';
+  const k = dir === 'up' ? Math.ceil(n / 1000) : Math.floor(n / 1000);
+  return k === 0 ? '<1' : k.toLocaleString('ru-RU');
+}
+
 /** Плитка ресурса: значок в кольце + крупное число. */
 function Tile({
   ring,
@@ -244,7 +251,7 @@ function SciCard({
           {total > 0 && <i className={'op-mark' + (need > total ? ' over' : '')} style={{ left: `calc(${mark * 100}% - ${mark * 16 - 8}px)` }} />}
         </div>
         <span className="op-sc-count" title="Учёных отправлено / нужно, чтобы открыть уровень за год">
-          <b>{fmtShort(n)}</b>/<span className={need > total ? 'neg' : 'pos'}>{fmtShort(need)}</span>
+          <b>{fmtK(n, 'down')}</b>/<span className={need > total ? 'neg' : 'pos'}>{fmtK(need, 'up')}</span>
         </span>
       </div>
       <div className="op-sc-quick">
@@ -278,11 +285,11 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
   // ── Найм ──
   const maxS = Math.max(
     0,
-    Math.min(fc.staffRoom - Math.max(0, draft.hireScientists), maxRecruits('soldier', me.soldiers, pop, me.money - (fc.spend - fc.soldierCost))),
+    Math.min(fc.staffRoom - Math.max(0, draft.hireScientists), maxRecruits('soldier', me.soldiers, pop, me.money + fc.onceIn - (fc.spend - fc.soldierCost))),
   );
   const maxSc = Math.max(
     0,
-    Math.min(fc.staffRoom - Math.max(0, draft.hireSoldiers), maxRecruits('scientist', me.scientists, pop, me.money - (fc.spend - fc.scientistCost))),
+    Math.min(fc.staffRoom - Math.max(0, draft.hireSoldiers), maxRecruits('scientist', me.scientists, pop, me.money + fc.onceIn - (fc.spend - fc.scientistCost))),
   );
   // Выбранное ползунком, но ещё не нанятое — для предпросмотра расходов
   const [pickS, setPickS] = useState(0);
@@ -307,7 +314,7 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
       : null;
   const moneyAfterPick = fcPick ? fcPick.moneyEnd : fc.moneyEnd;
   // Найм и покупки оплачиваются сразу — казна уменьшается, как только нажали «Нанять»
-  const cashNow = me.money - fc.spend;
+  const cashNow = me.money + fc.onceIn - fc.spend;
   const cashAfterPick = cashNow - pendCost;
   const dPop = fc.popEnd - fc.population;
   const atCap = me.population >= fc.maxPop * 0.995;
@@ -407,6 +414,12 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
                     {game.countries[d.from].name}
                   </button>{' '}
                   {d.ultimatum ? <b className="neg">требует</b> : 'предлагает'}: {dealText(game, d, me.id)}
+                  {d.payer === me.id && d.yearly > 0 && (on ? fc.moneyEnd : fc.moneyEnd - d.yearly) < 0 && (
+                    <span className="neg" title="Дань платится в конце года. Если денег не хватит — мир сорвётся, а честь пострадает.">
+                      {' '}
+                      · не хватит денег на дань!
+                    </span>
+                  )}
                 </span>
                 <button className={'btn small ' + (on ? 'on' : 'primary')} onClick={() => toggleAccept(d.id)} disabled={!on && cantPay}>
                   {on ? 'Принято ✓' : 'Принять'}
@@ -493,6 +506,7 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
 
       {moneyOpen && (
         <div className="op-money">
+          {fc.onceIn > 0 && <span className="pos">по сделкам сразу +{fmtShort(fc.onceIn)}</span>}
           <span className="pos">крестьяне +{fmtShort(fc.taxes)}</span>
           {fc.saleRevenue > 0 && <span className="pos">зерно +{fmtShort(fc.saleRevenue)}</span>}
           {fc.grainCost > 0 && <span className="neg">зерно −{fmtShort(fc.grainCost)}</span>}
