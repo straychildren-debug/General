@@ -140,7 +140,16 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
     setTimeout(() => {
       const human: Record<number, Orders> = {};
       for (const id of humans) human[id] = drafts[id] ?? defaultOrders(game.countries[id]);
-      const next = advanceYear(game, human);
+      let next: GameState;
+      try {
+        next = advanceYear(game, human);
+      } catch (err) {
+        // Не оставляем игру «висеть»: снимаем блокировку и подсказываем, что делать
+        console.error(err);
+        setBusy(false);
+        window.alert('Не удалось обработать год — похоже, страница устарела после обновления игры. Обновите страницу (Ctrl+F5): игра сохранена на начало года, приказы этого года нужно будет отдать заново.');
+        return;
+      }
       const nextHumans = next.countries.filter((c) => c.alive && c.controller === 'human');
       setGame(next);
       setDrafts(makeDrafts(next));
