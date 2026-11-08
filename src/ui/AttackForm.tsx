@@ -70,7 +70,7 @@ export function AttackForm({
     onSent?.();
   };
 
-  if (!gen) return <div className="warn-box">Нет свободного генерала — купите генерала в «Приказах».</div>;
+  if (!gen) return <div className="warn-box">Нет свободного генерала — купите его в карточке своей страны (щёлкните по ней на карте).</div>;
   return (
     <div className="op-attack">
       <div className="op-attack-head">

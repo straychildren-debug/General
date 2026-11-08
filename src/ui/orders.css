@@ -1365,3 +1365,162 @@ button.op-tile:hover {
   padding-left: 8px;
   padding-right: 6px;
 }
+
+/* Название страны вверху — кнопка, открывает карточку своей страны */
+button.country-chip {
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+button.country-chip:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Карточка своей страны */
+.ccard-h-btn {
+  margin-left: auto;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.mg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mg-list.market {
+  padding-top: 8px;
+  border-top: 1px dashed var(--line-2);
+}
+.mg {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 6px 6px 8px;
+  border-radius: 10px;
+  background: #0f151c;
+  border: 1px solid var(--line);
+}
+.mg.def .op-ava {
+  border-color: #5aa9e6;
+}
+.mg.study .op-ava {
+  border-color: var(--good);
+}
+.mg.atk .op-ava {
+  border-color: #e0785a;
+}
+.mg.buy {
+  border-color: var(--accent);
+}
+.mg.off {
+  opacity: 0.55;
+}
+.mg-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12.5px;
+}
+.mg-main b {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mg-seg {
+  display: inline-flex;
+  gap: 3px;
+  margin-top: 2px;
+}
+.mg-seg button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line-2);
+  background: transparent;
+  font-size: 11.5px;
+  color: #c7d0dc;
+}
+.mg-seg button.on {
+  border-color: var(--accent);
+  background: rgba(230, 180, 80, 0.15);
+  color: var(--accent-2);
+}
+.mg-task {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: #f0a58f;
+}
+.mg-x {
+  align-self: flex-start;
+  font-size: 12px;
+}
+.op-scout.flat {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+.nb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.nb {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'name btns' 'info btns';
+  column-gap: 8px;
+  align-items: center;
+  padding: 5px 6px 5px 9px;
+  border-radius: 9px;
+  background: #0f151c;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--c);
+}
+.nb-name {
+  grid-area: name;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  font-size: 13px;
+  min-width: 0;
+}
+.nb-name b {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nb-name:hover b {
+  color: var(--accent-2);
+}
+.nb-name .mood {
+  margin: 0;
+}
+.nb-info {
+  grid-area: info;
+  font-size: 11.5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.nb-btns {
+  grid-area: btns;
+  display: flex;
+  gap: 4px;
+}
+.nb-btns .btn.small {
+  padding: 3px 8px;
+}

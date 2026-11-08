@@ -8,6 +8,7 @@ import { battleVisible } from '../core/intel';
 import type { BattleReport, GameState, Orders } from '../core/types';
 import { BattleReportView } from './BattleReportView';
 import { CountryCard } from './CountryCard';
+import { MyCountryCard } from './MyCountryCard';
 import { Honor, MOOD, moodLevel, Swatch } from './common';
 import { disgraced, honorOf, rel } from '../core/diplomacy';
 import { OrdersPanel } from './OrdersPanel';
@@ -179,10 +180,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
       if (id != null) setTab('world');
       return;
     }
-    if (id === viewer) {
-      setCard(null);
-      setTab('orders');
-    } else setCard(id);
+    setCard(id);
   };
   // «Договориться» — карточка страны с открытыми переговорами
   const openDiplomacy = (id: number) => {
@@ -197,7 +195,6 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
   const tabs: { id: Tab; label: string }[] = viewer != null
     ? [
         { id: 'orders', label: 'Приказы' },
-        { id: 'world', label: 'Мир' },
         { id: 'news', label: 'События' },
       ]
     : [
@@ -230,13 +227,13 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
       <header className="topbar">
         <div className="logo">Полководец</div>
         {me ? (
-          <div className="country-chip" style={{ borderColor: me.color }}>
+          <button className="country-chip" style={{ borderColor: me.color }} onClick={() => setCard(card?.id === me.id ? null : me.id)} title="Ваша страна: генералы, разведчик, соседи">
             <Swatch color={me.color} />
             <div>
               <div className="cc-name">{me.name}</div>
               <div className="cc-sub">{me.playerName}</div>
             </div>
-          </div>
+          </button>
         ) : (
           <div className="country-chip muted">Наблюдатель</div>
         )}
@@ -333,6 +330,23 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
                 Сейчас
               </button>
             </div>
+          )}
+          {card != null && me && draft && card.id === viewer && (
+            <MyCountryCard
+              game={game}
+              geo={geo}
+              me={me}
+              draft={draft}
+              setDraft={setDraft}
+              onClose={() => {
+                setCard(null);
+                setSelected(null);
+              }}
+              onOpenCountry={(id, deal) => {
+                setSelected(id);
+                setCard(id, deal);
+              }}
+            />
           )}
           {card != null && me && draft && card.id !== viewer && (
             <CountryCard

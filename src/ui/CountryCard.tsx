@@ -60,7 +60,7 @@ export function CountryCard({
     const t = taskOf(g);
     return t.type === 'attack' && t.target === id;
   });
-  const cancel = (g: General) => setDraft((o) => ({ ...o, tasks: autoTasks(me, { ...o.tasks, [g.id]: { type: 'defend' } }, o.dismissGenerals) }));
+  const cancel = (g: General) => setDraft((o) => ({ ...o, tasks: autoTasks(me, { ...o.tasks, [g.id]: { type: 'study' } }, o.dismissGenerals) }));
   const ruler = rulerOf(game, id);
   const war = warlike(game, id);
   const ratio = it.known ? it.soldiers / Math.max(1, it.soldiers + me.soldiers) : null;
