@@ -13,10 +13,11 @@ import {
   retireAge,
   sciMult,
   SCIENCE_INFO,
+  scoutPrice,
   studyGain,
   TERRAIN_INFO,
 } from './balance';
-import { ensureDiplomacy, onBetrayal, treatyBetween, yearlyDiplomacy } from './diplomacy';
+import { addRel, ensureDiplomacy, onBetrayal, treatyBetween, yearlyDiplomacy } from './diplomacy';
 import { econOf, settle, staffRoom, starvationDeaths, type Econ } from './econ';
 import { fmt, fmtShort } from './format';
 import { defaultOrders, generateOffers, randomGeneral } from './game';
@@ -32,6 +33,7 @@ import {
   type General,
   type GeneralTask,
   type Orders,
+  type ScoutReport,
   type YearReport,
 } from './types';
 
@@ -72,7 +74,7 @@ export function resolveTurn(prev: GameState, ordersIn: Record<number, Orders>): 
   for (const c of alive) c.science.alloc = normalizeAlloc(orders.get(c.id)!.scienceAlloc);
 
   // 2. Закупки: генералы, учёные, задачи
-  for (const c of alive) applyPurchases(c, orders.get(c.id)!, report);
+  for (const c of alive) applyPurchases(s, c, orders.get(c.id)!, report);
 
   // 3. Война
   runWar(s, rng, geo, report);
@@ -90,6 +92,9 @@ export function resolveTurn(prev: GameState, ordersIn: Record<number, Orders>): 
 
   // Дипломатия: дань, обязательства союзников, истечение договоров, отношения, честь
   yearlyDiplomacy(s, report);
+
+  // Разведка: донесения о положении дел на конец года
+  runScouts(s, rng, report);
 
   // 6. Итоги года
   for (const c of s.countries) {
@@ -135,7 +140,19 @@ function marketPrice(s: GameState, supply: number, deficits: number, worldPop: n
   return price;
 }
 
-function applyPurchases(c: Country, o: Orders, report: YearReport): void {
+function applyPurchases(s: GameState, c: Country, o: Orders, report: YearReport): void {
+  if (o.scout?.hire && !c.hasScout) {
+    const price = scoutPrice(s.cellsPerCountry, s.year);
+    if (c.money >= price) {
+      c.money -= price;
+      c.hasScout = true;
+      note(report, c, `Нанят разведчик за ${fmtShort(price)}`, true);
+    }
+  }
+  if (o.scout) {
+    const t = o.scout.target;
+    c.scoutTarget = t != null && t !== c.id && s.countries[t]?.alive ? t : null;
+  }
   const dismiss = new Set(Array.isArray(o.dismissGenerals) ? o.dismissGenerals : []);
   for (const g of c.generals) if (dismiss.has(g.id)) note(report, c, `Генерал ${g.name} уволен`);
   c.generals = c.generals.filter((g) => !dismiss.has(g.id));
@@ -772,5 +789,49 @@ function checkVictory(s: GameState): void {
     // Лимит лет действует во всех режимах: побеждает крупнейшая держава
     s.over = true;
     s.winner = top.id;
+  }
+}
+
+// ───────────────────────────── Разведка ─────────────────────────────
+
+/** Каждый разведчик за год изучает одну страну: точно, примерно — или попадается. */
+function runScouts(s: GameState, rng: Rng, report: YearReport): void {
+  for (const c of s.countries) {
+    if (!c.alive || !c.hasScout || c.scoutTarget == null) continue;
+    const t = s.countries[c.scoutTarget];
+    if (!t?.alive) {
+      c.scoutTarget = null;
+      continue;
+    }
+    const roll = rng.next();
+    if (roll < B.scoutCaught) {
+      c.hasScout = false;
+      c.scoutTarget = null;
+      addRel(s, c.id, t.id, -10);
+      note(report, c, `Наш разведчик пойман и казнён в государстве ${t.name}`, false);
+      note(report, t, `Пойман и казнён разведчик государства ${c.name}`, true);
+      continue;
+    }
+    const full = roll < B.scoutCaught + B.scoutFull;
+    const fuzz = (v: number) => (full ? v : v * (0.75 + rng.next() * 0.5)); // примерно ±25%
+    const gens = [...t.generals].sort((a, b) => b.exp - a.exp);
+    const rep: ScoutReport = {
+      by: c.id,
+      target: t.id,
+      year: s.year,
+      quality: full ? 'full' : 'partial',
+      soldiers: Math.round(fuzz(t.soldiers) / 100) * 100,
+      milLevel: full ? t.science.level[S_MIL] : Math.max(0, t.science.level[S_MIL] + rng.int(-1, 1)),
+      generals: (full ? gens : gens.slice(0, 1)).map((g) => ({ exp: Math.round(fuzz(g.exp)), speed: g.speed })),
+    };
+    s.intel = s.intel.filter((r) => !(r.by === c.id && r.target === t.id));
+    s.intel.push(rep);
+    const gtext = rep.generals.length ? rep.generals.map((g) => `опыт ${g.exp}`).join(', ') : 'нет';
+    note(
+      report,
+      c,
+      `Разведчик ${full ? 'доложил точно' : 'выяснил примерно'} о государстве ${t.name}: солдат ${full ? '' : '≈'}${fmt(rep.soldiers)}, военная мощь ур. ${rep.milLevel}${full ? '' : ' (±1)'}, генералы: ${gtext}`,
+      true,
+    );
   }
 }

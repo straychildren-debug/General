@@ -22,6 +22,11 @@ export function ensureDiplomacy(s: GameState): GameState {
   if (!s.relations || s.relations.length !== n * n) s.relations = new Array(n * n).fill(0);
   if (!s.honor || s.honor.length !== n) s.honor = new Array(n).fill(100);
   s.nextDealId ??= 1;
+  s.intel ??= [];
+  for (const c of s.countries) {
+    c.hasScout ??= false;
+    c.scoutTarget ??= null;
+  }
   // Науки «Фортификация» и «Разведка» убраны: в старых сохранениях их было 8
   for (const c of s.countries) {
     if (c.science.level.length > SCIENCE_COUNT) {

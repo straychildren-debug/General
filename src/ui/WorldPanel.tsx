@@ -1,7 +1,7 @@
 import { PERSONALITY_NAMES } from '../ai/ai';
-import { fmtShort, pct } from '../core/format';
+import { fmtShort, pct, years } from '../core/format';
 import { areNeighbors, type Geo } from '../core/geo';
-import { battleVisible, estimate } from '../core/intel';
+import { battleVisible, estimate, scoutReport } from '../core/intel';
 import type { GameState } from '../core/types';
 import { Card, Mood, Row, Swatch } from './common';
 import { rel, treatyBetween } from '../core/diplomacy';
@@ -13,9 +13,12 @@ interface Props {
   viewer: number | null;
   selected: number | null;
   onSelect: (id: number | null) => void;
+  /** Куда разведчик идёт в этом году (черновик приказа) */
+  scoutTarget?: number | null;
+  onScout?: (id: number) => void;
 }
 
-export function WorldPanel({ game, geo, viewer, selected, onSelect }: Props) {
+export function WorldPanel({ game, geo, viewer, selected, onSelect, scoutTarget, onScout }: Props) {
   const land = game.map.landCells;
   // Сначала своя страна, затем соседи, затем остальные — по размеру территории
   const rank = (id: number) => (id === viewer ? 0 : viewer != null && areNeighbors(geo, viewer, id) ? 1 : 2);
@@ -52,25 +55,16 @@ export function WorldPanel({ game, geo, viewer, selected, onSelect }: Props) {
             <>
               <Row label="Территория" value={`${sel.cells} клеток · ${pct(sel.cells / land, 1)}`} />
               <Row label="Население" value={fmtShort(selEst.population)} />
-              {!selEst.visible ? (
-                <div className="fog">
-                  Нет общей границы — разведка не достаёт. Известны только территория и население.
-                </div>
-              ) : (
+              {viewer == null || viewer === sel.id ? (
                 <>
-                  {viewer != null && viewer !== sel.id && (
-                    <Row
-                      label="Сведения разведки"
-                      value={selEst.exact ? 'точные' : `погрешность ±${Math.round(selEst.err * 100)}%`}
-                      tone="muted"
-                    />
-                  )}
-                  <Row label="Солдаты" value={approx(selEst.exact) + fmtShort(selEst.soldiers)} />
-                  <Row label="Учёные" value={approx(selEst.exact) + fmtShort(selEst.scientists)} />
-                  <Row label="Казна" value={approx(selEst.exact) + fmtShort(selEst.money)} />
-                  <Row label="Генералы" value={`${selEst.generals}, лучший опыт ${approx(selEst.exact)}${Math.round(selEst.bestExp)}`} />
+                  <Row label="Солдаты" value={fmtShort(selEst.soldiers)} />
+                  <Row label="Учёные" value={fmtShort(selEst.scientists)} />
+                  <Row label="Казна" value={fmtShort(selEst.money)} />
+                  <Row label="Генералы" value={`${selEst.generals}, лучший опыт ${Math.round(selEst.bestExp)}`} />
                   <Row label="Уровни наук" value={selEst.levels.join(' · ')} hint="Деньги · Сельск. хоз. · Плотность · Рост · Военная мощь · Наука" />
                 </>
+              ) : (
+                <ScoutInfo game={game} viewer={viewer} id={sel.id} going={scoutTarget === sel.id} onScout={onScout} />
               )}
             </>
           )}
@@ -111,7 +105,7 @@ export function WorldPanel({ game, geo, viewer, selected, onSelect }: Props) {
                     <span className="small">{pct(c.cells / land, 1)}</span>
                   </td>
                   <td>{fmtShort(e.population)}</td>
-                  <td>{e.visible ? approx(e.exact) + fmtShort(e.soldiers) : <span className="muted">?</span>}</td>
+                  <td>{e.visible ? approx(e.exact) + fmtShort(e.soldiers) : <span className="muted">?</span>}{e.age ? <span className="muted small"> · {years(e.age)} назад</span> : null}</td>
                 </tr>
               );
             })}
@@ -128,7 +122,7 @@ export function WorldPanel({ game, geo, viewer, selected, onSelect }: Props) {
           </tbody>
         </table>
         <div className="hint">
-          О дальних странах известны только территория и население. О соседях — примерные сведения разведки («~», ±25%).
+          О чужих странах известны только территория и население. Армию узнаёт разведчик: «~» — примерные сведения, «?» — разведки не было.
         </div>
       </Card>
     </div>
@@ -153,5 +147,49 @@ function RecentBattles({ game, geo, id, viewer }: { game: GameState; geo: Geo; i
         <BattleLine key={k} game={game} b={b} viewer={viewer} year={year} />
       ))}
     </div>
+  );
+}
+
+function ScoutInfo({ game, viewer, id, going, onScout }: { game: GameState; viewer: number; id: number; going: boolean; onScout?: (id: number) => void }) {
+  const rep = scoutReport(game, viewer, id);
+  const it = estimate(game, viewer, id);
+  const btn = onScout && !going && (
+    <button className="link" onClick={() => onScout(id)}>
+      {game.countries[viewer].hasScout ? 'послать разведчика' : 'нанять разведчика'}
+    </button>
+  );
+  const goingNote = going && <span className="muted small">разведчик отправится туда в этом году</span>;
+  if (!rep)
+    return (
+      <div className="fog">
+        Армия неизвестна — разведки не было. {btn}
+        {goingNote}
+      </div>
+    );
+  const full = rep.quality === 'full';
+  const a = full ? '' : '~';
+  return (
+    <>
+      <Row
+        label="Разведка"
+        value={`донесение ${rep.year}-го года · ${full ? 'полные сведения' : 'частичные сведения'}${it.age ? ` · ${years(it.age)} назад` : ''}`}
+        tone="muted"
+      />
+      <Row label="Солдаты" value={a + fmtShort(rep.soldiers)} />
+      <Row label="Военная мощь" value={`${a}${rep.milLevel} ур.`} />
+      <Row
+        label="Генералы"
+        value={
+          rep.generals.length === 0
+            ? 'нет'
+            : full
+              ? rep.generals.map((g) => Math.round(g.exp)).join(', ') + ' (опыт)'
+              : `лучший — опыт ~${Math.round(rep.generals[0].exp)}`
+        }
+      />
+      <div className="small">
+        {btn ? <>Сведения устаревают — {btn}</> : goingNote}
+      </div>
+    </>
   );
 }

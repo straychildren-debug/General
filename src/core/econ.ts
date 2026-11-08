@@ -1,4 +1,4 @@
-import { B, generalUpkeep, recruitCost, sciMult } from './balance';
+import { B, generalUpkeep, recruitCost, sciMult, scoutPrice } from './balance';
 import type { Geo } from './geo';
 import { S_AGRI, S_DENS, S_ECON, S_GROW, S_SCI, type Country, type GameState, type Orders } from './types';
 
@@ -177,7 +177,8 @@ export function forecast(state: GameState, geo: Geo, c: Country, o: Orders): For
     if (t.payer === c.id) tribOut += t.yearly;
     else tribIn += t.yearly;
   }
-  const spend = hireCost + generalCost + dipOnce;
+  const scoutCost = o.scout?.hire && !c.hasScout ? scoutPrice(state.cellsPerCountry, state.year) : 0;
+  const spend = hireCost + generalCost + dipOnce + scoutCost;
   const moneyAfterPurchases = c.money - spend;
 
   const sim: Country = {

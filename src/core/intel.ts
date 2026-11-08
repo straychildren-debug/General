@@ -1,15 +1,18 @@
-import { INTEL_ERROR } from './balance';
-import { hash01 } from './rng';
-import type { GameState } from './types';
+import { S_MIL, SCIENCE_COUNT, type GameState, type ScoutReport } from './types';
 
 /**
  * То, что одна страна знает о другой.
- * Своя страна — всё точно. Соседи — через разведку с погрешностью.
- * Дальние страны — только территория и население (они видны всем).
+ * Своя страна — всё точно. О чужих видны территория и население; военные сведения
+ * (солдаты, военная мощь, генералы) — только из донесений разведчика, и они устаревают.
+ * Без донесения поля заполнены догадкой («у них примерно как у нас») с большой погрешностью —
+ * ею пользуется компьютер, а игроку показывается «?».
  */
 export interface Intel {
-  visible: boolean; // есть ли сведения кроме территории и населения
+  visible: boolean; // есть ли военные сведения (своя страна или донесение разведки)
+  known: boolean; // то же — сведения из донесения, а не догадка
   exact: boolean;
+  age: number | null; // сколько лет донесению
+  quality: 'full' | 'partial' | null;
   err: number;
   cells: number;
   population: number;
@@ -22,53 +25,78 @@ export interface Intel {
   bestExp: number;
 }
 
-export function intelErrorFor(_state: GameState, observer: number, target: number): number {
-  if (observer === target) return 0;
-  return INTEL_ERROR;
+/** Последнее донесение разведки observer о стране target. */
+export function scoutReport(state: GameState, observer: number, target: number): ScoutReport | undefined {
+  return (state.intel ?? []).find((r) => r.by === observer && r.target === target);
 }
 
-export function estimate(state: GameState, observer: number, target: number, neighbor: boolean): Intel {
+export function estimate(state: GameState, observer: number, target: number, _neighbor = true): Intel {
   const t = state.countries[target];
-  const self = observer === target;
-  const visible = self || neighbor;
-  if (!visible) {
+  const me = state.countries[observer];
+  if (observer === target) {
+    let bestExp = 0;
+    for (const g of t.generals) bestExp = Math.max(bestExp, g.exp);
     return {
-      visible: false,
-      exact: false,
-      err: 1,
+      visible: true,
+      known: true,
+      exact: true,
+      age: 0,
+      quality: 'full',
+      err: 0,
       cells: t.cells,
       population: t.population,
-      soldiers: 0,
-      scientists: 0,
-      money: 0,
-      happiness: 0,
-      levels: t.science.level.map(() => 0),
-      generals: 0,
-      bestExp: 0,
+      soldiers: t.soldiers,
+      scientists: t.scientists,
+      money: t.money,
+      happiness: t.happiness,
+      levels: t.science.level.slice(),
+      generals: t.generals.length,
+      bestExp,
     };
   }
-  const err = intelErrorFor(state, observer, target);
-  const seed = state.settings.seed;
-  const noisy = (v: number, k: number) => {
-    if (err === 0) return v;
-    const u = hash01(seed, state.year, observer, target, k) * 2 - 1;
-    return v * (1 + u * err);
-  };
-  let bestExp = 0;
-  for (const g of t.generals) bestExp = Math.max(bestExp, g.exp);
+  const levels = new Array(SCIENCE_COUNT).fill(0);
+  const rep = scoutReport(state, observer, target);
+  if (rep) {
+    // Донесение «на конец года rep.year»; каждый следующий год сведения всё менее надёжны
+    const age = Math.max(0, state.year - 1 - rep.year);
+    levels[S_MIL] = rep.milLevel;
+    return {
+      visible: true,
+      known: true,
+      exact: false,
+      age,
+      quality: rep.quality,
+      err: Math.min(0.8, (rep.quality === 'full' ? 0.04 : 0.2) + 0.12 * age),
+      cells: t.cells,
+      population: t.population,
+      soldiers: rep.soldiers,
+      scientists: 0,
+      money: 0,
+      happiness: 50,
+      levels,
+      generals: rep.generals.length,
+      bestExp: rep.generals.reduce((a, g) => Math.max(a, g.exp), 0),
+    };
+  }
+  // Сведений нет — догадка: «армия и наука у них примерно как у нас»
+  const ratio = me.population > 0 ? me.soldiers / me.population : 0.05;
+  levels[S_MIL] = me.science.level[S_MIL];
   return {
-    visible: true,
-    exact: err === 0,
-    err,
+    visible: false,
+    known: false,
+    exact: false,
+    age: null,
+    quality: null,
+    err: 0.5,
     cells: t.cells,
     population: t.population,
-    soldiers: noisy(t.soldiers, 2),
-    scientists: noisy(t.scientists, 3),
-    money: noisy(t.money, 4),
-    happiness: Math.max(0, Math.min(100, noisy(t.happiness, 5))),
-    levels: t.science.level.map((l, i) => Math.max(0, Math.round(noisy(l, 10 + i)))),
-    generals: t.generals.length,
-    bestExp: noisy(bestExp, 6),
+    soldiers: t.population * Math.max(0.03, ratio),
+    scientists: 0,
+    money: 0,
+    happiness: 50,
+    levels,
+    generals: 1,
+    bestExp: 20,
   };
 }
 

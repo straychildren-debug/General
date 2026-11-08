@@ -1984,3 +1984,19 @@ details.more-inline summary {
   background: rgba(255, 106, 92, 0.08);
   border-color: rgba(255, 106, 92, 0.4);
 }
+
+.scout-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.scout-row select {
+  width: auto;
+  flex: 1;
+  min-width: 140px;
+}

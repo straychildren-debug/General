@@ -14,6 +14,7 @@ import {
   recruitPrice,
   morale,
   retireAge,
+  scoutPrice,
   sciMult,
   sciRel,
   studyGain,
@@ -281,6 +282,7 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
 
   // План войны: какую армию нужно иметь, чтобы выгодно ударить по лучшей цели
   let planNeed = 0;
+  let planTarget = -1;
   if (attackGens.length) {
     let bestScore = 0;
     const g = attackGens[0];
@@ -295,6 +297,7 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
       if (score > bestScore) {
         bestScore = score;
         planNeed = need;
+        planTarget = tg.t;
       }
     }
   }
@@ -493,6 +496,30 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
     const surv = best.soldiers * (1 - lw.win);
     curCells.set(best.target, curCells.get(best.target)! - best.p * captureAmount(cpc, tc.cells, best.gen, ratio, 0.5, surv, tc.population / Math.max(1, tc.cells)));
   }
+  // ── Разведка: один разведчик, одна страна в год ──
+  // Сначала — тот, на кого готовим удар; иначе — самый опасный сосед, о котором давно нет сведений
+  o.scout = { hire: false, target: null };
+  const truceLeft2 = (state.settings.truceYears ?? 0) - state.year;
+  if (!c.hasScout && truceLeft2 <= 2 && budget > scoutPrice(cpc, state.year) * 3) {
+    o.scout.hire = true;
+    budget -= scoutPrice(cpc, state.year);
+  }
+  if ((c.hasScout || o.scout.hire) && nbs.length) {
+    let best = -1;
+    let bestScore = -1;
+    for (const n of nbs) {
+      const it = intel.get(n)!;
+      const stale = it.known ? (it.age ?? 0) + 1 : 6;
+      const weight = 1 + (n === planTarget ? 2 : 0) + Math.min(2, (threat.get(n) ?? 0) / Math.max(1, c.soldiers));
+      const score = stale * weight * jit();
+      if (score > bestScore) {
+        bestScore = score;
+        best = n;
+      }
+    }
+    o.scout.target = best >= 0 ? best : null;
+  }
+
   // ── Остальные генералы: оборона и учёба ──
   for (const g of generals) {
     if (usedGen.has(g.id)) continue;

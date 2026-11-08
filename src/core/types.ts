@@ -71,6 +71,8 @@ export interface Country {
   science: Science;
   generals: General[];
   offers: GeneralOffer[];
+  hasScout: boolean; // разведчик может быть только один
+  scoutTarget: number | null; // куда разведчик отправлен
 }
 
 export interface GameSettings {
@@ -187,6 +189,20 @@ export interface GameState {
   honor: number[]; // честь 0..100; ниже 50 — с вами никто не договаривается
   nextDealId: number;
   pendingEvents?: GameEvent[]; // события, случившиеся до обработки года (договоры)
+  intel: ScoutReport[]; // последние донесения: по одному на пару «кто — о ком»
+}
+
+// ───────────── Разведка ─────────────
+
+/** Донесение разведчика: состояние страны на конец года year. */
+export interface ScoutReport {
+  by: number;
+  target: number;
+  year: number;
+  quality: 'full' | 'partial'; // точные или примерные сведения
+  soldiers: number;
+  milLevel: number;
+  generals: { exp: number; speed: number }[]; // при частичном успехе — только лучший
 }
 
 // ───────────── Дипломатия ─────────────
@@ -229,6 +245,7 @@ export interface DiplomacyOrders {
 
 export interface Orders {
   diplomacy?: DiplomacyOrders;
+  scout?: { hire: boolean; target: number | null };
   taxRate: number;
   sellGrain: number;
   buyGrain: number;

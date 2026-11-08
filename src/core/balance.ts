@@ -46,6 +46,9 @@ export const B = {
   battleRand: 0.12,
   captureBase: 0.025,
   occupyFrac: 0.12, // чтобы удержать клетку, нужно солдат ≈ 12% её жителей
+  scoutPrice: 15000, // разведчик (масштабируется размером страны)
+  scoutCaught: 0.2, // шанс, что разведчика поймают и казнят
+  scoutFull: 0.45, // шанс точных сведений (иначе — примерные)
   elimFrac: 0.07,
 };
 
@@ -225,4 +228,9 @@ export function captureAmount(
   // Землю надо занять и удержать: небольшой отряд много не возьмёт
   const occupy = Math.floor(survivors / Math.max(1, popPerCell * B.occupyFrac));
   return Math.max(0, Math.min(defCells, occupy, Math.round(Math.min(cap, n))));
+}
+
+/** Цена разведчика (дорожает со временем, как и генералы). */
+export function scoutPrice(cpc: number, year: number): number {
+  return Math.round((B.scoutPrice * costScale(cpc) * (1 + 0.02 * (year - 1))) / 100) * 100;
 }

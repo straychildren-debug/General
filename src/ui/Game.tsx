@@ -352,8 +352,25 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
                 }}
               />
             )}
-            {activeTab === 'world' && <WorldPanel game={game} geo={geo} viewer={viewer} selected={selected} onSelect={onSelect} />}
-            {activeTab === 'news' && <NewsPanel game={game} viewer={viewer} nbs={myNbs} />}
+            {activeTab === 'world' && (
+              <WorldPanel
+                game={game}
+                geo={geo}
+                viewer={viewer}
+                selected={selected}
+                onSelect={setSelected}
+                scoutTarget={draft?.scout?.target ?? me?.scoutTarget ?? null}
+                onScout={
+                  me
+                    ? (id) =>
+                        setDraft((o) => ({
+                          ...o,
+                          scout: { ...(o.scout ?? { hire: false, target: me.scoutTarget }), ...(me.hasScout ? { target: id } : { hire: true, target: id }) },
+                        }))
+                    : undefined
+                }
+              />
+            )}            {activeTab === 'news' && <NewsPanel game={game} viewer={viewer} nbs={myNbs} />}
           </div>
         </aside>
       </main>

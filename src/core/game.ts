@@ -110,6 +110,8 @@ export function createGame(settings: GameSettings): GameState {
       },
       generals: [],
       offers: [],
+      hasScout: false,
+      scoutTarget: null,
     });
   }
 
@@ -133,6 +135,7 @@ export function createGame(settings: GameSettings): GameState {
     relations: new Array(n * n).fill(0),
     honor: new Array(n).fill(100),
     nextDealId: 1,
+    intel: [],
   };
 
   // Одинаковый стартовый генерал у всех
@@ -177,6 +180,7 @@ export function defaultOrders(c: Country): Orders {
     scienceAlloc: c.science.alloc.slice(),
     buyOffers: [],
     dismissGenerals: [],
+    scout: { hire: false, target: c.scoutTarget ?? null },
     tasks,
   };
 }
