@@ -243,16 +243,27 @@ function SciCard({
           {total > 0 && <i className={'op-mark' + (need > total ? ' over' : '')} style={{ left: `calc(${mark * 100}% - ${mark * 16 - 8}px)` }} />}
         </div>
         <span className="op-sc-count" title="Учёных отправлено / нужно, чтобы открыть уровень за год">
-          <b>{fmtShort(n)}</b>/
-          <button
-            className="op-sc-need"
-            onClick={() => onSet(need)}
-            disabled={total === 0 || n === need || (free <= 0 && n >= need)}
-            title={`Отправить ${fmtShort(need)} — уровень откроют в этом году`}
-          >
-            {fmtShort(need)}
-          </button>
+          <b>{fmtShort(n)}</b>/<span className={need > total ? 'neg' : 'pos'}>{fmtShort(need)}</span>
         </span>
+      </div>
+      <div className="op-sc-quick">
+        <button
+          className={n === need && need > 0 ? 'on' : ''}
+          onClick={() => onSet(need)}
+          disabled={total === 0 || (free <= 0 && n >= need) || n === need}
+          title={`Отправить ${fmtShort(need)} — уровень откроют в этом году`}
+        >
+          за год
+        </button>
+        <button onClick={() => onSet(Math.round(total / 2 / step) * step)} disabled={total === 0} title="Половину всех учёных">
+          50%
+        </button>
+        <button onClick={() => onSet(n + free)} disabled={free <= 0} title="Всех свободных учёных — сюда">
+          все
+        </button>
+        <button onClick={() => onSet(0)} disabled={n === 0} title="Снять учёных с этой науки">
+          0
+        </button>
       </div>
     </div>
   );

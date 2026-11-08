@@ -172,7 +172,11 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
 
   // Щелчок по своей стране — к приказам; по чужой — карточка страны на карте (разведка, отношения, поход)
   const [card, setCardState] = useState<{ id: number; deal: boolean } | null>(null);
-  const setCard = (id: number | null, deal = false) => setCardState(id == null ? null : { id, deal });
+  const [newsOpen, setNewsOpen] = useState(false);
+  const setCard = (id: number | null, deal = false) => {
+    setCardState(id == null ? null : { id, deal });
+    if (id != null) setNewsOpen(false);
+  };
   const onSelect = (id: number | null) => {
     setSelected(id);
     if (id == null || viewer == null) {
@@ -192,11 +196,9 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
     setSelected(id);
   };
 
+  // У игрока справа только «Приказы»; «События» открываются кнопкой над картой
   const tabs: { id: Tab; label: string }[] = viewer != null
-    ? [
-        { id: 'orders', label: 'Приказы' },
-        { id: 'news', label: 'События' },
-      ]
+    ? [{ id: 'orders', label: 'Приказы' }]
     : [
         { id: 'world', label: 'Мир' },
         { id: 'news', label: 'События' },
@@ -310,7 +312,31 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
             >
               Хроника
             </button>
+            {viewer != null && (
+              <button
+                className={'news-btn ' + (newsOpen ? 'on' : '')}
+                onClick={() => {
+                  setNewsOpen(!newsOpen);
+                  setCard(null);
+                }}
+                title="События по годам: итоги, сражения, донесения"
+              >
+                События
+                {lastRep && lastRep.battles.some((b) => b.attacker === viewer || b.defender === viewer) && <i className="news-dot" />}
+              </button>
+            )}
           </div>
+          {newsOpen && viewer != null && (
+            <div className="news-overlay">
+              <div className="news-head">
+                <b>События</b>
+                <button className="ccard-x" onClick={() => setNewsOpen(false)} aria-label="Закрыть">
+                  ✕
+                </button>
+              </div>
+              <NewsPanel game={game} viewer={viewer} nbs={myNbs} onOpenBattle={openBattle} />
+            </div>
+          )}
           {chron != null && (
             <div className="chronicle">
               <button className="btn small" onClick={() => setChronPlay(!chronPlay)}>
@@ -372,13 +398,15 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         </div>
 
         <aside className="side">
-          <nav className="tabs">
-            {tabs.map((t) => (
-              <button key={t.id} className={activeTab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>
-                {t.label}
-              </button>
-            ))}
-          </nav>
+          {viewer == null && (
+            <nav className="tabs">
+              {tabs.map((t) => (
+                <button key={t.id} className={activeTab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+          )}
           <div className="side-scroll">
             {viewer != null && !helpHidden && game.year <= 5 && (
               <div className="howto">
