@@ -1,3 +1,4 @@
+import { generalNameFor } from './cultures';
 import type { Rng } from './rng';
 
 export const COUNTRY_NAMES = [
@@ -25,8 +26,10 @@ const LAST = [
   'Метелин', 'Невзоров', 'Обухов', 'Пересветов', 'Рокотов', 'Суворин', 'Твердохлебов', 'Шатров',
 ];
 
-export function generalName(rng: Rng): string {
-  return rng.pick(FIRST) + ' ' + rng.pick(LAST);
+/** Имя генерала в духе его страны (без страны — русское). Берёт из генератора два числа. */
+export function generalName(rng: Rng, country?: string): string {
+  if (!country) return rng.pick(FIRST) + ' ' + rng.pick(LAST);
+  return generalNameFor(country, rng.next(), rng.next());
 }
 
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {

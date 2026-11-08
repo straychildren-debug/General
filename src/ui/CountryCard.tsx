@@ -5,7 +5,7 @@ import { Portrait, rulerOf, warlike, WAR_COLORS } from './rulers';
 import { fmtShort, pct, years } from '../core/format';
 import type { Geo } from '../core/geo';
 import { estimate, scoutReport } from '../core/intel';
-import type { Country, GameState, General, Orders } from '../core/types';
+import { S_MIL, type Country, type GameState, type General, type Orders } from '../core/types';
 import { AttackForm } from './AttackForm';
 import { autoTasks } from './autoGenerals';
 import { Honor, Mood, MOOD, moodLevel, Swatch } from './common';
@@ -39,7 +39,7 @@ export function CountryCard({
   const c = game.countries[id];
   const neighbor = geo.neighbors[me.id].includes(id);
   const rep = scoutReport(game, me.id, id);
-  const it = estimate(game, me.id, id, neighbor);
+  const it = estimate(game, me.id, id, geo);
   const r = rel(game, id, me.id);
   const treaty = treatyBetween(game, me.id, id);
   const ally = treaty?.kind === 'alliance';
@@ -174,7 +174,15 @@ export function CountryCard({
             )}
           </>
         ) : (
-          <div className="ccard-unknown">Армия неизвестна — разведчик здесь не бывал.</div>
+          it.source === 'battle' ? (
+            <div className="ccard-unknown seen">
+              По сражениям{it.age ? ` ${years(it.age)} назад` : ' прошлого года'}: <b>~{fmtShort(it.soldiers)}</b> солдат, военная мощь ~{it.levels[S_MIL]}.
+              <br />
+              Точнее узнает разведчик.
+            </div>
+          ) : (
+            <div className="ccard-unknown">Армия неизвестна — разведчик здесь не бывал.</div>
+          )
         )}
         <div className="ccard-actions">
           {scoutGoing ? (

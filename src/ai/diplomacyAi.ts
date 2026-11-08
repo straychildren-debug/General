@@ -37,7 +37,7 @@ export function attackOpportunity(state: GameState, geo: Geo, a: number, t: numb
   if (!c?.alive || !tc?.alive || !areNeighbors(geo, a, t)) return { ev: 0, p: 0, ratio: 0 };
   const g = c.generals.reduce<(typeof c.generals)[number] | null>((x, y) => (!x || attackFactor(y) > attackFactor(x) ? y : x), null);
   if (!g) return { ev: 0, p: 0, ratio: 0 };
-  const it = estimate(state, a, t, true);
+  const it = estimate(state, a, t, geo);
   const D =
     (it.soldiers * frontFactorGeo(geo, a, t) * helpMult + it.population * 0.002) *
     milDefAt(it.levels[S_MIL]) *
@@ -132,9 +132,12 @@ export function aiDiplomacy(prev: GameState): GameState {
   const alive = s.countries.filter((c) => c.alive);
   const offer = (d: Omit<Deal, 'id' | 'year'>) => s.offers.push({ ...d, id: s.nextDealId++, year: s.year });
 
+  const avgCells = s.map.landCells / alive.length;
   // ── Предложения людям ──
   for (const h of alive.filter((c) => c.controller === 'human')) {
     let count = 0;
+    // Сильному игроку мир не дарят: соседи скорее объединятся против него
+    const hLeads = h.cells > avgCells * 1.5;
     for (const aiId of geo.neighbors[h.id]) {
       const ai = s.countries[aiId];
       if (!ai.alive || ai.controller !== 'ai' || count >= 2 || disgraced(s, aiId)) continue;
@@ -149,12 +152,12 @@ export function aiDiplomacy(prev: GameState): GameState {
         const yearly = round1000(Math.min(my.ev * 0.4, hIncome * 0.3));
         offer({ from: aiId, to: h.id, kind: 'peace', years: 5, payer: h.id, once: 0, yearly, target: null, ultimatum: true });
         count++;
-      } else if (!disgraced(s, h.id) && their.ev > income * 0.25 && their.p > 0.5 && my.ev <= 0 && rng.chance(0.5)) {
-        // Боится нас — предлагает мир (иногда с подарком)
-        const once = their.p > 0.75 ? round1000(their.ev * 0.2) : 0;
+      } else if (!hLeads && !disgraced(s, h.id) && their.ev > income * 0.25 && their.p > 0.5 && my.ev <= 0 && rng.chance(0.35)) {
+        // Боится нас — предлагает мир (изредка с небольшим подарком)
+        const once = their.p > 0.85 && rng.chance(0.4) ? round1000(Math.min(their.ev * 0.1, income * 0.15)) : 0;
         offer({ from: aiId, to: h.id, kind: 'peace', years: 5, payer: once > 0 ? aiId : null, once, yearly: 0, target: null, ultimatum: false });
         count++;
-      } else if (!disgraced(s, h.id) && r >= -10 && rng.chance(0.25)) {
+      } else if (!hLeads && !disgraced(s, h.id) && r >= -10 && rng.chance(0.25)) {
         // Совместный поход на общего соседа
         let bestT = -1;
         let bestEv = 0;
@@ -179,16 +182,21 @@ export function aiDiplomacy(prev: GameState): GameState {
   const ais = alive.filter((c) => c.controller === 'ai' && !disgraced(s, c.id));
   const avg = s.map.landCells / alive.length;
   const leader = alive.reduce((a, b) => (b.cells > a.cells ? b : a), alive[0]);
-  // Коалиция против лидера
-  if (leader && leader.cells > avg * 1.8 && alive.length > 3) {
+  // Коалиция против лидера: чем он больше, тем охотнее соседи объединяются — даже если поодиночке
+  // нападать невыгодно, вдвоём у них есть шанс
+  if (leader && leader.cells > avg * 1.5 && alive.length > 3) {
+    const share = leader.cells / avg;
     const around = ais.filter((c) => c.id !== leader.id && areNeighbors(geo, c.id, leader.id) && !treatyBetween(s, c.id, leader.id));
     let made = 0;
-    for (let i = 0; i < around.length && made < 3; i++) {
-      for (let j = i + 1; j < around.length && made < 3; j++) {
+    const maxPairs = share > 2.5 ? 5 : 3;
+    for (let i = 0; i < around.length && made < maxPairs; i++) {
+      for (let j = i + 1; j < around.length && made < maxPairs; j++) {
         const a = around[i].id;
         const b = around[j].id;
-        if (treatyBetween(s, a, b) || rel(s, a, b) < -30 || !rng.chance(0.5)) continue;
-        if (attackOpportunity(s, geo, a, leader.id, 0.65).ev <= 0 || attackOpportunity(s, geo, b, leader.id, 0.65).ev <= 0) continue;
+        if (treatyBetween(s, a, b) || rel(s, a, b) < -30 || !rng.chance(Math.min(0.85, 0.35 + 0.15 * share))) continue;
+        const oa = attackOpportunity(s, geo, a, leader.id, 0.55);
+        const ob = attackOpportunity(s, geo, b, leader.id, 0.55);
+        if (share < 2.2 ? oa.ev <= 0 || ob.ev <= 0 : Math.max(oa.p, ob.p) < 0.25) continue;
         if (applyDeal(s, { id: 0, from: a, to: b, kind: 'alliance', years: 1, payer: null, once: 0, yearly: 0, target: leader.id, ultimatum: false, year: s.year })) made++;
       }
     }

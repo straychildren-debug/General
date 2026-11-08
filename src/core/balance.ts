@@ -4,9 +4,9 @@ import type { Country, General } from './types';
 export const TERRAIN_INFO = [
   { name: 'Вода', fert: 0, cap: 0, def: 1 },
   { name: 'Равнина', fert: 1.15, cap: 1.05, def: 1.0 },
-  { name: 'Лес', fert: 0.85, cap: 0.95, def: 1.2 },
-  { name: 'Холмы', fert: 0.8, cap: 0.9, def: 1.35 },
-  { name: 'Горы', fert: 0.45, cap: 0.7, def: 1.7 },
+  { name: 'Лес', fert: 0.85, cap: 0.95, def: 1.25 },
+  { name: 'Холмы', fert: 0.8, cap: 0.9, def: 1.45 },
+  { name: 'Горы', fert: 0.45, cap: 0.7, def: 1.9 },
 ];
 
 /** Основные константы баланса. Денежные цены генералов/укреплений масштабируются размером страны. */
@@ -92,8 +92,9 @@ export function costScale(cpc: number): number {
 }
 
 /** Множитель командования от опыта: 0 → ×0.6, 25 → ×1.0, 80 → ×1.6, предел ×2.2 */
+/** Множитель силы войска от опыта генерала: новичок ≈×0.85, ветеран (опыт 100) ≈×2.2. */
 export function genFactor(exp: number): number {
-  return 0.6 + 1.6 * (1 - Math.exp(-exp / 80));
+  return 0.55 + 2.2 * (1 - Math.exp(-exp / 70));
 }
 
 /** Влияние настроения на хозяйство: 50 → ×1.0 */

@@ -1775,3 +1775,81 @@ button.country-chip:hover {
     display: none;
   }
 }
+
+/* Выбор генерала для похода */
+.op-gen-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.op-gp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 3px;
+  border-radius: 18px;
+  border: 1px solid var(--line-2);
+  background: #0f151c;
+  font-size: 12px;
+  color: #c7d0dc;
+}
+.op-gp:hover {
+  border-color: #46597a;
+}
+.op-gp.on {
+  border-color: var(--accent);
+  background: rgba(230, 180, 80, 0.14);
+  color: var(--text);
+}
+.op-gp-ava {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  background: #2a3646;
+}
+.op-gp.on .op-gp-ava {
+  background: rgba(230, 180, 80, 0.35);
+}
+.op-gp-main {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  text-align: left;
+}
+.op-gp-main span {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.op-gp .icon {
+  color: #5aa9e6;
+}
+.ccard-unknown.seen {
+  color: #c7d0dc;
+  border-style: solid;
+  background: rgba(230, 180, 80, 0.06);
+}
+.op-attack-head {
+  align-items: center;
+}
+.op-attack-head .op-gen-pick {
+  flex: 1;
+  margin: 0;
+}
+.op-attack-lbl {
+  color: var(--muted);
+}
+.op-gp {
+  padding: 1px 8px 1px 2px;
+}
+.op-gp-ava {
+  width: 22px;
+  height: 22px;
+}
+.op-attack-head {
+  margin-bottom: 2px;
+}

@@ -1,6 +1,7 @@
 // Правители стран: имя с титулом, портрет и нрав (насколько страна воинственна).
 // Всё выводится детерминированно из номера партии и страны — без хранения в сохранении.
 import { hash01 } from '../core/rng';
+import { cultureOf } from '../core/cultures';
 import type { GameState } from '../core/types';
 
 export interface Ruler {
@@ -8,24 +9,37 @@ export interface Ruler {
   name: string;
   female: boolean;
   seed: number;
+  /** Какие головные уборы бывают у правителей этой страны */
+  hats?: string[];
 }
 
-const MALE = ['Альберт', 'Борис', 'Вильгельм', 'Густав', 'Давид', 'Казимир', 'Леопольд', 'Максимилиан', 'Олаф', 'Рудольф', 'Сигизмунд', 'Фридрих', 'Карл', 'Филипп', 'Генрих', 'Стефан', 'Владислав', 'Ахмед', 'Тимур', 'Осман', 'Педро', 'Мануэль', 'Харальд', 'Эрик', 'Ярослав', 'Арман', 'Лоренцо', 'Матвей'];
-const FEMALE = ['Елизавета', 'Екатерина', 'Мария', 'Анна', 'Изабелла', 'Виктория', 'Кристина', 'Маргарита', 'Ольга', 'Тамара', 'Беатриса'];
-const TITLES_M = ['Король', 'Император', 'Князь', 'Хан', 'Султан', 'Царь', 'Герцог', 'Эмир'];
-const TITLES_F = ['Королева', 'Императрица', 'Княгиня', 'Царица', 'Герцогиня'];
+const HATS: Record<string, string[]> = {
+  Турция: ['turban'], Египет: ['turban'], Ирак: ['turban'], Сирия: ['turban'], Марокко: ['turban'], Персия: ['turban', 'crown'],
+  Афганистан: ['turban'], Индия: ['turban'], Индонезия: ['turban', 'none'],
+  Монголия: ['fur', 'helmet'], Казахстан: ['fur', 'helmet'], Россия: ['crown', 'fur'], Украина: ['fur', 'none'], Польша: ['crown', 'fur'],
+  США: ['none'], Канада: ['none'], Австралия: ['none'], Финляндия: ['none'], Швейцария: ['none'],
+  Мексика: ['none'], Аргентина: ['none'], Чили: ['none'], Перу: ['none'], Колумбия: ['none'], Венесуэла: ['none'], Куба: ['none'],
+  Япония: ['helmet', 'none'], Китай: ['crown', 'none'], Корея: ['crown', 'none'], Вьетнам: ['crown', 'none'],
+};
+
 const ROMAN = ['', ' I', ' II', ' III', ' IV', ' V', ' VI', ' VII', ' VIII', ' IX'];
 
 export function rulerOf(game: GameState, id: number): Ruler {
   const c = game.countries[id];
   const s = game.settings.seed ?? 1;
   const seed = Math.floor(hash01(s, id, 77) * 1e9);
-  const female = hash01(s, id, 1) < 0.2;
   if (c.controller === 'human') return { title: 'Правитель', name: c.playerName ?? 'Игрок', female: false, seed };
+  const cu = cultureOf(c.name);
+  const female = hash01(s, id, 1) < 0.15;
   const pick = <T,>(arr: T[], k: number) => arr[Math.floor(hash01(s, id, k) * arr.length) % arr.length];
-  const title = female ? pick(TITLES_F, 2) : pick(TITLES_M, 2);
-  const name = (female ? pick(FEMALE, 3) : pick(MALE, 3)) + ROMAN[Math.floor(hash01(s, id, 4) * ROMAN.length) % ROMAN.length];
-  return { title, name, female, seed };
+  const title = female ? cu.titleF : cu.titleM;
+  let name = female ? pick(cu.female, 3) : pick(cu.male, 3);
+  if (cu.ordinal) name += ROMAN[1 + (Math.floor(hash01(s, id, 4) * (ROMAN.length - 1)) % (ROMAN.length - 1))];
+  else if (!cu.noLast && cu.last.length) {
+    const last = pick(cu.last, 5);
+    name = cu.lastFirst ? `${last} ${name}` : `${name} ${last}`;
+  }
+  return { title, name, female, seed, hats: HATS[c.name] };
 }
 
 // ── Нрав ──
@@ -59,7 +73,9 @@ export function Portrait({ ruler, color, size = 56 }: { ruler: Ruler; color: str
   const hair = old ? HAIR[4 + Math.floor(h(3) * 2)] : HAIR[Math.floor(h(3) * 4)];
   const beard = ruler.female ? 0 : Math.floor(h(4) * 3); // 0 — нет, 1 — короткая, 2 — длинная
   const mustache = !ruler.female && (beard > 0 || h(5) < 0.5);
-  const hats = ruler.female ? ['tiara', 'crown', 'none'] : ['crown', 'turban', 'helmet', 'fur', 'none', 'crown'];
+  const hats = ruler.female
+    ? ruler.hats?.[0] === 'none' ? ['none'] : ['tiara', 'crown', 'none']
+    : (ruler.hats ?? ['crown', 'crown', 'none']);
   const hat = hats[Math.floor(h(6) * hats.length)];
   const robe = ['#7b2d3a', '#2d4e7b', '#3d6b3a', '#5b3d7b', '#7b5a2d'][Math.floor(h(7) * 5)];
   const id = 'pt' + ruler.seed;

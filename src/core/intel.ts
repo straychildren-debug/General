@@ -1,3 +1,4 @@
+import type { Geo } from './geo';
 import { S_MIL, SCIENCE_COUNT, type GameState, type ScoutReport } from './types';
 
 /**
@@ -13,6 +14,8 @@ export interface Intel {
   exact: boolean;
   age: number | null; // сколько лет донесению
   quality: 'full' | 'partial' | null;
+  /** Откуда сведения: донесение разведчика, виденные сражения или догадка */
+  source: 'self' | 'scout' | 'battle' | 'guess';
   err: number;
   cells: number;
   population: number;
@@ -30,7 +33,11 @@ export function scoutReport(state: GameState, observer: number, target: number):
   return (state.intel ?? []).find((r) => r.by === observer && r.target === target);
 }
 
-export function estimate(state: GameState, observer: number, target: number, _neighbor = true): Intel {
+/**
+ * Что observer знает об армии target. geo нужен, чтобы учитывать сражения соседей
+ * (их видно так же, как игроку); без него — только сражения с участием самого observer.
+ */
+export function estimate(state: GameState, observer: number, target: number, geo?: Geo | boolean): Intel {
   const t = state.countries[target];
   const me = state.countries[observer];
   if (observer === target) {
@@ -42,6 +49,7 @@ export function estimate(state: GameState, observer: number, target: number, _ne
       exact: true,
       age: 0,
       quality: 'full',
+      source: 'self',
       err: 0,
       cells: t.cells,
       population: t.population,
@@ -66,6 +74,7 @@ export function estimate(state: GameState, observer: number, target: number, _ne
       exact: false,
       age,
       quality: rep.quality,
+      source: 'scout',
       err: Math.min(0.8, (rep.quality === 'full' ? 0.04 : 0.2) + 0.12 * age),
       cells: t.cells,
       population: t.population,
@@ -78,6 +87,50 @@ export function estimate(state: GameState, observer: number, target: number, _ne
       bestExp: rep.generals.reduce((a, g) => Math.max(a, g.exp), 0),
     };
   }
+  // Донесения нет — может быть, видели её войска в сражениях последних лет
+  const nbs = geo && typeof geo === 'object' ? geo.neighbors[observer] : null;
+  let seen = 0;
+  let seenYear = -1;
+  let seenLevel: number | null = null;
+  let seenExp: number | null = null;
+  for (const r of state.reports.slice(-3)) {
+    for (const b of r.battles) {
+      if (b.attacker !== target && b.defender !== target) continue;
+      if (nbs ? !battleVisible(observer, nbs, b.attacker, b.defender) : b.attacker !== observer && b.defender !== observer) continue;
+      const atk = b.attacker === target;
+      // Напавший послал часть армии; оборонявшийся показал весь гарнизон
+      const n = atk ? b.attackerSoldiers * 1.3 : (b.details?.def.total ?? b.defenderSoldiers);
+      if (n >= seen) {
+        seen = n;
+        seenYear = r.year;
+        const side = atk ? b.details?.atk : b.details?.def;
+        seenLevel = side?.level ?? null;
+        seenExp = side?.exp ?? null;
+      }
+    }
+  }
+  if (seen > 0) {
+    const age = Math.max(0, state.year - 1 - seenYear);
+    levels[S_MIL] = seenLevel ?? me.science.level[S_MIL];
+    return {
+      visible: true,
+      known: true,
+      exact: false,
+      age,
+      quality: 'partial',
+      source: 'battle',
+      err: Math.min(0.8, 0.35 + 0.12 * age),
+      cells: t.cells,
+      population: t.population,
+      soldiers: seen * (1 + 0.1 * age),
+      scientists: 0,
+      money: 0,
+      happiness: 50,
+      levels,
+      generals: 1,
+      bestExp: seenExp ?? 20,
+    };
+  }
   // Сведений нет — догадка: «армия и наука у них примерно как у нас»
   const ratio = me.population > 0 ? me.soldiers / me.population : 0.05;
   levels[S_MIL] = me.science.level[S_MIL];
@@ -87,6 +140,7 @@ export function estimate(state: GameState, observer: number, target: number, _ne
     exact: false,
     age: null,
     quality: null,
+    source: 'guess',
     err: 0.5,
     cells: t.cells,
     population: t.population,

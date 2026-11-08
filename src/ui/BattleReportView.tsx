@@ -7,7 +7,7 @@ import { Swatch } from './common';
 import { Icon } from './icons';
 
 function stars(exp: number): number {
-  return Math.max(0, Math.min(5, Math.round(((genFactor(exp) - 0.6) / 1.6) * 5)));
+  return Math.max(0, Math.min(5, Math.round(((genFactor(exp) - 0.55) / 2.2) * 5)));
 }
 
 function SideCard({ game, s, viewer }: { game: GameState; s: SideInfo; viewer: number | null }) {
@@ -136,6 +136,8 @@ export function BattleReportView({ game, b, viewer, year }: { game: GameState; b
         <SideCard game={game} s={ch.d} viewer={viewer} />
       </div>
 
+      {b.details && <ForceTable game={game} b={b} />}
+
       <div className="br-body">
         <div className="br-story">
           <div className="br-h">Как шло сражение</div>
@@ -255,6 +257,119 @@ export function BattleReportView({ game, b, viewer, year }: { game: GameState; b
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+/** Из чего сложилась сила сторон: каждый множитель отдельно и итог. */
+function ForceTable({ game, b }: { game: GameState; b: BattleReport }) {
+  const det = b.details!;
+  const A = game.countries[b.attacker];
+  const D = game.countries[b.defender];
+  const x = (v: number) => '×' + v.toFixed(2);
+  const tone = (v: number) => (v > 1.02 ? 'pos' : v < 0.98 ? 'neg' : '');
+  const militia = det.def.militia ?? 0;
+  const terrain = b.field ? 1 : det.def.terrain;
+  const aBase = b.attackerSoldiers * det.atk.mil * det.atk.gen * det.atk.morale;
+  const dBase = (b.defenderSoldiers + militia) * det.def.mil * det.def.gen * terrain * det.def.morale;
+  const aLuck = b.attackerStrength / Math.max(1, aBase);
+  const dLuck = b.defenderStrength / Math.max(1, dBase);
+  const lvl = (l?: number) => (l != null ? ` (ур. ${l})` : '');
+  return (
+    <div className="br-calc">
+      <div className="br-h">Расчёт силы</div>
+      <table className="forces br-forces">
+        <thead>
+          <tr>
+            <th />
+            <th>
+              <Swatch color={A.color} /> {A.name}
+            </th>
+            <th>
+              <Swatch color={D.color} /> {D.name}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Солдат в бою</td>
+            <td>{fmt(b.attackerSoldiers)}</td>
+            <td>
+              {fmt(b.defenderSoldiers)}
+              {militia > 0 && <span className="muted"> + ополчение {fmt(militia)}</span>}
+            </td>
+          </tr>
+          {!b.field && det.def.front < 0.999 && det.def.total > 0 && (
+            <tr>
+              <td>Гарнизон на этом участке</td>
+              <td className="muted">—</td>
+              <td>
+                {Math.round(det.def.front * 100)}% <span className="muted">из {fmt(det.def.total)}</span>
+              </td>
+            </tr>
+          )}
+          <tr>
+            <td>Генерал (опыт)</td>
+            <td>
+              {b.attackerGeneral}
+              {det.atk.exp != null && <span className="muted"> · {det.atk.exp}</span>} <b className={tone(det.atk.gen)}>{x(det.atk.gen)}</b>
+            </td>
+            <td>
+              {b.defenderGeneral ? (
+                <>
+                  {b.defenderGeneral}
+                  {det.def.exp != null && <span className="muted"> · {det.def.exp}</span>} <b className={tone(det.def.gen)}>{x(det.def.gen)}</b>
+                </>
+              ) : (
+                <span className="neg">без командира {x(det.def.gen)}</span>
+              )}
+            </td>
+          </tr>
+          <tr>
+            <td>Военная мощь</td>
+            <td>
+              <b className={tone(det.atk.mil)}>{x(det.atk.mil)}</b>
+              <span className="muted">{lvl(det.atk.level)}</span>
+            </td>
+            <td>
+              <b className={tone(det.def.mil)}>{x(det.def.mil)}</b>
+              <span className="muted">{lvl(det.def.level)}</span>
+            </td>
+          </tr>
+          <tr>
+            <td>Местность</td>
+            <td className="muted">—</td>
+            <td>
+              {b.field ? <span className="muted">открытое поле</span> : <b className={tone(terrain)}>{x(terrain)}</b>}
+              {!b.field && <span className="muted"> · {terrain >= 1.3 ? 'горы и холмы' : terrain >= 1.12 ? 'леса' : 'равнина'}</span>}
+            </td>
+          </tr>
+          <tr>
+            <td>Боевой дух</td>
+            <td>
+              <b className={tone(det.atk.morale)}>{x(det.atk.morale)}</b>
+            </td>
+            <td>
+              <b className={tone(det.def.morale)}>{x(det.def.morale)}</b>
+            </td>
+          </tr>
+          <tr>
+            <td>Удача в бою</td>
+            <td>
+              <b className={tone(aLuck)}>{x(aLuck)}</b>
+            </td>
+            <td>
+              <b className={tone(dLuck)}>{x(dLuck)}</b>
+            </td>
+          </tr>
+          <tr className="total">
+            <td>Итоговая сила</td>
+            <td className={b.attackerWon ? 'pos' : ''}>{fmt(b.attackerStrength)}</td>
+            <td className={!b.attackerWon ? 'pos' : ''}>{fmt(b.defenderStrength)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div className="muted small">Сила = солдаты × генерал × военная мощь × местность × боевой дух × удача. Местность помогает только обороне.</div>
     </div>
   );
 }

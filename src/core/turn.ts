@@ -673,7 +673,7 @@ function rollEvents(s: GameState, rng: Rng, report: YearReport, harvestMult: Map
         break;
       case 5: {
         if (c.generals.length >= B.maxGenerals) break;
-        const g = randomGeneral(rng, s.nextGeneralId++);
+        const g = randomGeneral(rng, s.nextGeneralId++, c.name);
         g.exp = rng.int(15, 35);
         c.generals.push(g);
         ev(`На вашу сторону перешёл генерал ${g.name}`, true);

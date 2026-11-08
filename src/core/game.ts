@@ -32,12 +32,12 @@ export const DEFAULT_SETTINGS: GameSettings = {
 
 const PERSONALITIES: PersonalityId[] = ['aggressor', 'scientist', 'merchant', 'cunning', 'balanced'];
 
-export function randomGeneral(rng: Rng, id: number): General {
+export function randomGeneral(rng: Rng, id: number, country?: string): General {
   let exp = Math.round(rng.next() ** 2 * 32);
   if (rng.chance(0.07)) exp += rng.int(15, 30);
   return {
     id,
-    name: generalName(rng),
+    name: generalName(rng, country),
     age: rng.int(23, 52),
     exp,
     speed: rng.int(1, 10),
@@ -57,7 +57,7 @@ export function generalPrice(g: General, year: number, cpc: number): number {
 export function generateOffers(rng: Rng, state: GameState, c: Country): void {
   c.offers = [];
   for (let k = 0; k < B.offersPerYear; k++) {
-    const g = randomGeneral(rng, state.nextGeneralId++);
+    const g = randomGeneral(rng, state.nextGeneralId++, c.name);
     const offer: GeneralOffer = { ...g, price: generalPrice(g, state.year, state.cellsPerCountry) };
     c.offers.push(offer);
   }
@@ -142,7 +142,7 @@ export function createGame(settings: GameSettings): GameState {
   for (const c of countries) {
     c.generals.push({
       id: state.nextGeneralId++,
-      name: generalName(rng),
+      name: generalName(rng, c.name),
       age: 34,
       exp: 10,
       speed: 4,

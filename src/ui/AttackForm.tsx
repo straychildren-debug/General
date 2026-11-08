@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { battleLosses, captureAmount, scoutPrice } from '../core/balance';
+import { battleLosses, captureAmount, genFactor, scoutPrice } from '../core/balance';
 import { treatyBetween } from '../core/diplomacy';
 import { battleOdds } from '../core/estimate';
 import { fmtShort, years } from '../core/format';
@@ -8,7 +8,7 @@ import { estimate } from '../core/intel';
 import type { Country, GameState, General, GeneralTask, Orders } from '../core/types';
 import { autoTasks, pickAttacker } from './autoGenerals';
 import { Icon } from './icons';
-import { Amount, chanceWord, Meter, Stars } from './opParts';
+import { Amount, chanceWord, initials, Meter, Stars } from './opParts';
 
 /**
  * Поход на соседа: сколько солдат отправить, шанс победы, кнопка «В поход!».
@@ -40,11 +40,14 @@ export function AttackForm({
     return a + (t.type === 'attack' ? t.soldiers : 0);
   }, 0);
   const avail = Math.max(0, me.soldiers - sent);
-  const gen = pickAttacker(me, draft.tasks);
+  // Генерала выбирает игрок; по умолчанию — лучший из свободных (не командир обороны)
+  const free = generals.filter((g) => taskOf(g).type !== 'attack');
+  const [genId, setGenId] = useState<number | null>(null);
+  const gen = free.find((g) => g.id === genId) ?? pickAttacker(me, draft.tasks);
   const [pick, setPick] = useState<number | null>(null);
   const army = Math.min(avail, pick ?? Math.floor((avail * 0.5) / 100) * 100);
   const odds = gen && army > 0 ? battleOdds(game, geo, me.id, tgt, gen, army) : null;
-  const intel = estimate(game, me.id, tgt, true);
+  const intel = estimate(game, me.id, tgt, geo);
   const expectCells = (() => {
     if (!odds || !gen) return 0;
     const tc = game.countries[tgt];
@@ -74,9 +77,26 @@ export function AttackForm({
   return (
     <div className="op-attack">
       <div className="op-attack-head">
-        <span>
-          Ведёт <b>{gen.name}</b> <Stars exp={gen.exp} />
-        </span>
+        <span className="op-attack-lbl">Ведёт:</span>
+      <div className="op-gen-pick">
+        {free.map((g) => (
+          <button
+            key={g.id}
+            className={'op-gp' + (g.id === gen.id ? ' on' : '')}
+            onClick={() => setGenId(g.id)}
+            title={`${g.name}: опыт ${Math.round(g.exp)} (×${genFactor(g.exp).toFixed(2)} к силе), скорость ${g.speed}${taskOf(g).type === 'defend' ? ' — сейчас командует обороной' : ''}`}
+          >
+            <span className="op-gp-ava">{initials(g.name)}</span>
+            <span className="op-gp-main">
+              <b>{g.name.split(' ').slice(-1)[0]}</b>
+              <span>
+                <Stars exp={g.exp} /> ×{genFactor(g.exp).toFixed(1)}
+              </span>
+            </span>
+            {taskOf(g).type === 'defend' && <Icon name="shield" size={12} />}
+          </button>
+        ))}
+      </div>
         <span className="op-big">{fmtShort(army)}</span>
       </div>
       <Amount max={avail} value={army} onChange={setPick} />

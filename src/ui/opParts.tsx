@@ -71,7 +71,7 @@ export function chanceWord(p: number): { text: string; tone: 'pos' | 'warn' | 'n
 
 /** Опыт генерала звёздами (0–5). */
 export function stars(exp: number): number {
-  return Math.max(0, Math.min(5, Math.round(((genFactor(exp) - 0.6) / 1.6) * 5)));
+  return Math.max(0, Math.min(5, Math.round(((genFactor(exp) - 0.55) / 2.2) * 5)));
 }
 
 export function Stars({ exp }: { exp: number }) {

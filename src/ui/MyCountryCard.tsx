@@ -189,7 +189,7 @@ export function MyCountryCard({
                 <select value={scoutDraft.target ?? ''} onChange={(e) => setScout({ target: e.target.value === '' ? null : Number(e.target.value) })}>
                   <option value="">— отдыхает —</option>
                   {nbs.map((n) => {
-                    const it = estimate(game, me.id, n, true);
+                    const it = estimate(game, me.id, n, geo);
                     return (
                       <option key={n} value={n}>
                         {game.countries[n].name}
@@ -233,7 +233,7 @@ export function MyCountryCard({
             <div className="nb-list">
               {nbs.map((n) => {
                 const c = game.countries[n];
-                const it = estimate(game, me.id, n, true);
+                const it = estimate(game, me.id, n, geo);
                 const w = strengthWord(it, me.soldiers);
                 const treaty = treatyBetween(game, me.id, n);
                 const going = me.generals.find((g) => {

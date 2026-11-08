@@ -325,7 +325,7 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
   useEffect(() => {
     if (tgt != null) formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [tgt]);
-  const intelOf = new Map(nbs.map((n) => [n, estimate(game, me.id, n, true)]));
+  const intelOf = new Map(nbs.map((n) => [n, estimate(game, me.id, n, geo)]));
   const scoutDraft = draft.scout ?? { hire: false, target: me.scoutTarget ?? null };
   const hasScoutNow = me.hasScout || scoutDraft.hire;
 
@@ -626,7 +626,7 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
                   if (t.type !== 'attack') return null;
                   const c = game.countries[t.target];
                   const o = c?.alive ? battleOdds(game, geo, me.id, t.target, g, t.soldiers) : null;
-                  const known = estimate(game, me.id, t.target, true).known;
+                  const known = estimate(game, me.id, t.target, geo).known;
                   return (
                     <div className="op-camp" key={g.id} style={{ ['--c' as string]: c.color }}>
                       <Icon name="swords" size={15} />

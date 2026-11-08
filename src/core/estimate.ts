@@ -22,7 +22,7 @@ export function battleOdds(
   soldiers: number,
 ): Odds {
   const c = state.countries[me];
-  const it = estimate(state, me, target, true);
+  const it = estimate(state, me, target, geo);
   const D =
     (it.soldiers * frontFactorGeo(geo, me, target) + it.population * 0.002) *
     milDefAt(it.levels[S_MIL]) *

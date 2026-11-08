@@ -146,7 +146,7 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
 
   const nbs = geo.neighbors[id].filter((n) => state.countries[n].alive);
   const intel = new Map<number, Intel>();
-  for (const n of nbs) intel.set(n, estimate(state, id, n, true));
+  for (const n of nbs) intel.set(n, estimate(state, id, n, geo));
 
   // ── Угрозы ──
   const generals = [...c.generals];
