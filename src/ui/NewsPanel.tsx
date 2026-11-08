@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { TRAIT_INFO } from '../core/balance';
 import { fmt } from '../core/format';
 import { battleVisible } from '../core/intel';
 import type { BattleReport, GameState, YearReport } from '../core/types';
@@ -77,7 +76,6 @@ export function BattleDetail({ game, b, viewer }: { game: GameState; b: BattleRe
   }
   const story = battleStory(game, b);
   const x = (v: number) => '×' + v.toFixed(2);
-  const traits = (t: string[]) => t.map((id) => TRAIT_INFO[id as keyof typeof TRAIT_INFO].name).join(', ');
 
   return (
     <div className="bdetail">
@@ -119,13 +117,11 @@ export function BattleDetail({ game, b, viewer }: { game: GameState; b: BattleRe
               <td>Генерал</td>
               <td>
                 {b.attackerGeneral} {x(det.atk.gen)}
-                {det.atk.traits.length > 0 && <div className="muted small">{traits(det.atk.traits)}</div>}
               </td>
               <td>
                 {b.defenderGeneral ? (
                   <>
                     {b.defenderGeneral} {x(det.def.gen)}
-                    {det.def.traits.length > 0 && <div className="muted small">{traits(det.def.traits)}</div>}
                   </>
                 ) : (
                   <span className="neg">нет ×0.50</span>
@@ -143,11 +139,6 @@ export function BattleDetail({ game, b, viewer }: { game: GameState; b: BattleRe
                   <td>Местность</td>
                   <td>—</td>
                   <td>{x(det.def.terrain)}</td>
-                </tr>
-                <tr>
-                  <td>Укрепления</td>
-                  <td>—</td>
-                  <td>{det.def.fort ? `${det.def.fort} ур. ${x(1 + det.def.fort * 0.1)}` : 'нет'}</td>
                 </tr>
               </>
             )}

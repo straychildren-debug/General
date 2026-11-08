@@ -20,7 +20,6 @@ export interface Intel {
   levels: number[];
   generals: number;
   bestExp: number;
-  forts: Record<number, number>;
 }
 
 export function intelErrorFor(_state: GameState, observer: number, target: number): number {
@@ -46,7 +45,6 @@ export function estimate(state: GameState, observer: number, target: number, nei
       levels: t.science.level.map(() => 0),
       generals: 0,
       bestExp: 0,
-      forts: {},
     };
   }
   const err = intelErrorFor(state, observer, target);
@@ -71,7 +69,6 @@ export function estimate(state: GameState, observer: number, target: number, nei
     levels: t.science.level.map((l, i) => Math.max(0, Math.round(noisy(l, 10 + i)))),
     generals: t.generals.length,
     bestExp: noisy(bestExp, 6),
-    forts: { ...t.forts },
   };
 }
 

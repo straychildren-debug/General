@@ -5,10 +5,7 @@ import {
   bestDefender,
   captureAmount,
   defendFactor,
-  fortCost,
-  has,
   levelCost,
-  lossMod,
   maxRecruits,
   milDefAt,
   recruitCost,
@@ -81,7 +78,7 @@ export function resolveTurn(prev: GameState, ordersIn: Record<number, Orders>): 
   runWar(s, rng, geo, report);
 
   // Новобранцы и укрепления готовы только к концу года
-  for (const c of alive) if (c.alive) applyMobilization(s, geo, c, orders.get(c.id)!, report);
+  for (const c of alive) if (c.alive) applyMobilization(c, orders.get(c.id)!, report);
   geo = computeGeo(s);
 
   // 4. События
@@ -97,7 +94,6 @@ export function resolveTurn(prev: GameState, ordersIn: Record<number, Orders>): 
   // 6. Итоги года
   for (const c of s.countries) {
     if (!c.alive) continue;
-    for (const k of Object.keys(c.forts)) if (!s.countries[+k].alive) delete c.forts[+k];
     generateOffers(rng, s, c);
   }
 
@@ -171,8 +167,7 @@ function applyPurchases(c: Country, o: Orders, report: YearReport): void {
   for (const g of c.generals) g.task = sanitizeTask(tasks[g.id]);
 }
 
-function applyMobilization(s: GameState, geo: Geo, c: Country, o: Orders, report: YearReport): void {
-  const cpc = s.cellsPerCountry;
+function applyMobilization(c: Country, o: Orders, report: YearReport): void {
   let hs = Math.round(num(o.hireSoldiers));
   if (hs > 0) {
     hs = Math.min(hs, staffRoom(c), maxRecruits('soldier', c.soldiers, c.population, c.money));
@@ -185,17 +180,6 @@ function applyMobilization(s: GameState, geo: Geo, c: Country, o: Orders, report
     const n = Math.min(c.soldiers, -hs);
     c.soldiers -= n;
     note(report, c, `Распущено ${fmt(n)} солдат`);
-  }
-
-  for (const nb of new Set(Array.isArray(o.buildForts) ? o.buildForts : [])) {
-    if (!areNeighbors(geo, nb, c.id)) continue;
-    const lvl = c.forts[nb] ?? 0;
-    if (lvl >= B.maxFort) continue;
-    const cost = fortCost(lvl, cpc);
-    if (c.money < cost) continue;
-    c.money -= cost;
-    c.forts[nb] = lvl + 1;
-    note(report, c, `Укрепления на границе с ${s.countries[nb].name} доведены до уровня ${lvl + 1}`, true);
   }
 }
 
@@ -274,7 +258,6 @@ function gainExp(g: General, won: boolean, r: number): number {
   g.battles++;
   if (won) g.wins++;
   let e = won ? 4 + 8 * r : 2 + 3 * r;
-  if (has(g, 'veteran')) e *= 1.5;
   g.exp += e;
   return e;
 }
@@ -285,7 +268,7 @@ function note(report: YearReport, c: Country, text: string, good: boolean | null
 }
 
 function side(c: Country, g: General | null, mil: number, gen: number) {
-  return { mil, gen, exp: g ? Math.round(g.exp) : null, traits: g ? [...g.traits] : [], morale: morale(c.happiness) };
+  return { mil, gen, exp: g ? Math.round(g.exp) : null, morale: morale(c.happiness) };
 }
 
 function removeGeneral(c: Country, g: General): void {
@@ -313,8 +296,8 @@ function fieldBattle(
   const { win, lose } = battleLosses(r);
   const sa = a.soldiers;
   const sb = b.soldiers;
-  const la = Math.round(sa * (aWon ? win : lose) * lossMod(a.gen));
-  const lb = Math.round(sb * (aWon ? lose : win) * lossMod(b.gen));
+  const la = Math.round(sa * (aWon ? win : lose));
+  const lb = Math.round(sb * (aWon ? lose : win));
   a.soldiers -= la;
   b.soldiers -= lb;
   casualties(ca, la);
@@ -354,7 +337,7 @@ function fieldBattle(
     generalLost,
     details: {
       atk: sideA,
-      def: { ...sideB, terrain: 1, fort: 0, front: 1, total: sb, militia: 0 },
+      def: { ...sideB, terrain: 1, front: 1, total: sb, militia: 0 },
       seed: battleSeed,
     },
   });
@@ -402,13 +385,11 @@ function siegeBattle(
   const R = B.battleRand;
   const battleSeed = Math.floor(rng.next() * 1e9);
   const dg = bestDefender(def);
-  const fort = def.forts[att.id] ?? 0;
   const A = a.soldiers * sciMult(att, S_MIL) * attackFactor(a.gen) * morale(att.happiness) * (1 + rng.range(-R, R));
   const defPer =
     milDefAt(def.science.level[S_MIL]) *
     defendFactor(dg) *
     border.defAvg *
-    (1 + fort * B.fortBonus) *
     morale(def.happiness);
   const militia = def.population * 0.002;
   // На этом участке границы обороняется только часть гарнизона — остальные стерегут другие границы
@@ -420,8 +401,8 @@ function siegeBattle(
   const r = Math.min(A, D) / Math.max(A, D);
   const { win, lose } = battleLosses(r);
   const sa = a.soldiers;
-  const la = Math.round(sa * (attackerWon ? win : lose) * lossMod(a.gen));
-  const ld = Math.round(sd * (attackerWon ? lose : win) * lossMod(dg));
+  const la = Math.round(sa * (attackerWon ? win : lose));
+  const ld = Math.round(sd * (attackerWon ? lose : win));
   a.soldiers -= la;
   def.soldiers -= ld;
   casualties(att, la);
@@ -484,7 +465,6 @@ function siegeBattle(
       def: {
         ...sideD,
         terrain: border.defAvg,
-        fort,
         front: border.front,
         total: totalGarrison,
         militia: Math.round(militia),
@@ -610,7 +590,6 @@ function eliminate(s: GameState, def: Country, att: Country, report: YearReport)
   def.generals = [];
   def.offers = [];
   def.capital = -1;
-  def.forts = {};
   report.eliminated.push(def.id);
 }
 
@@ -771,7 +750,7 @@ function yearEconomy(s: GameState, geo: Geo, harvestMult: Map<number, number>, r
       // Смерть от старости: чем ближе к пределу возраста, тем вероятнее; от болезни — в любом возрасте
       const ra = retireAge(g);
       const oldAge = g.age >= ra || (g.age > ra - 12 && rng.chance((g.age - (ra - 12)) * 0.025));
-      const illness = !oldAge && rng.chance(has(g, 'sickly') ? 0.04 : has(g, 'hardy') ? 0.005 : 0.012);
+      const illness = !oldAge && rng.chance(0.012);
       if (oldAge || illness) {
         removeGeneral(c, g);
         ev(`Генерал ${g.name} умер ${oldAge ? 'от старости' : 'от болезни'} в возрасте ${g.age} лет`, false);

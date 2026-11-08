@@ -28,7 +28,6 @@ export function battleOdds(
     milDefAt(it.levels[S_MIL]) *
     (it.generals > 0 ? genFactor(it.bestExp) : B.noGeneral) *
     borderDefense(geo, me, target) *
-    (1 + (it.forts[me] ?? 0) * B.fortBonus) *
     morale(it.happiness);
   const A = soldiers * sciMult(c, S_MIL) * attackFactor(gen) * morale(c.happiness);
   const R = B.battleRand;

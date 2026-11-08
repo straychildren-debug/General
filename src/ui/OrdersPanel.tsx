@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { battleLosses, captureAmount, maxRecruits, recruitCost, type RecruitKind } from '../core/balance';
+import { B, battleLosses, captureAmount, maxRecruits, recruitCost, type RecruitKind } from '../core/balance';
 import { battleOdds } from '../core/estimate';
 import { fmtShort, years } from '../core/format';
 import { estimate } from '../core/intel';
@@ -30,6 +30,7 @@ function HireBox({
   onChange,
   unit,
   arrive,
+  salary,
 }: {
   kind: RecruitKind;
   have: number;
@@ -39,8 +40,42 @@ function HireBox({
   onChange: (v: number) => void;
   unit: string;
   arrive: string;
+  salary: number;
 }) {
   const [pick, setPick] = useState(0);
+  const [firing, setFiring] = useState(false);
+  const [firePick, setFirePick] = useState(0);
+  if (value < 0) {
+    return (
+      <div className="hired fire">
+        <div>
+          <b className="neg">Увольняем {fmtShort(-value)}</b> {unit}
+          <div className="muted small">экономия {fmtShort(-value * salary)} в год</div>
+        </div>
+        <button className="btn small ghost" onClick={() => onChange(0)}>
+          Отменить
+        </button>
+      </div>
+    );
+  }
+  if (firing) {
+    const step = have > 100000 ? 1000 : 100;
+    const n = Math.min(firePick, Math.floor(have));
+    return (
+      <div className="amount">
+        <Slider value={n} min={0} max={Math.max(1, Math.floor(have))} step={step} onChange={setFirePick} />
+        <div className="amount-foot muted small">
+          <span>{n > 0 ? `уволить ${fmtShort(n)} — экономия ${fmtShort(n * salary)} в год` : 'сколько уволить'}</span>
+          <button className="link" onClick={() => setFiring(false)}>
+            ← к найму
+          </button>
+        </div>
+        <button className="btn small wide" onClick={() => { setFiring(false); onChange(-n); }} disabled={n <= 0}>
+          Уволить
+        </button>
+      </div>
+    );
+  }
   if (value > 0) {
     return (
       <div className="hired">
@@ -74,6 +109,19 @@ function HireBox({
         unit={unit}
         onChange={setPick}
         extra={n > 0 ? `за ${fmtShort(recruitCost(kind, have, pop, n))}` : undefined}
+        footRight={
+          <>
+            макс. {fmtShort(max)}
+            {have > 0 && (
+              <>
+                {' · '}
+                <button className="link muted" onClick={() => setFiring(true)}>
+                  уволить…
+                </button>
+              </>
+            )}
+          </>
+        }
         action={
           <button className="btn primary buy" onClick={() => onChange(n)} disabled={n <= 0} title={n > 0 ? '' : 'Сначала выберите, сколько'}>
             Нанять
@@ -92,6 +140,7 @@ function Amount({
   unit,
   action,
   extra,
+  footRight,
 }: {
   max: number;
   value: number;
@@ -99,6 +148,7 @@ function Amount({
   unit: string;
   action?: React.ReactNode;
   extra?: string;
+  footRight?: React.ReactNode;
 }) {
   const v = Math.max(0, Math.min(max, value));
   const step = max > 100000 ? 1000 : 100;
@@ -125,7 +175,7 @@ function Amount({
             'нисколько'
           )}
         </span>
-        <span>максимум {fmtShort(max)}</span>
+        <span>{footRight ?? <>максимум {fmtShort(max)}</>}</span>
       </div>
     </div>
   );
@@ -269,8 +319,9 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
           have={me.soldiers}
           pop={pop}
           max={maxS}
-          value={Math.max(0, draft.hireSoldiers)}
+          value={draft.hireSoldiers}
           unit="солдат"
+          salary={B.soldierUpkeep}
           arrive="придут к концу года (в боях этого года не участвуют)"
           onChange={(v) => setDraft((o) => ({ ...o, hireSoldiers: v }))}
         />
@@ -368,8 +419,9 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
           have={me.scientists}
           pop={pop}
           max={maxSc}
-          value={Math.max(0, draft.hireScientists)}
+          value={draft.hireScientists}
           unit="учёных"
+          salary={B.sciUpkeep}
           arrive="приступят к работе сразу"
           onChange={(v) => setDraft((o) => ({ ...o, hireScientists: v }))}
         />

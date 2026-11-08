@@ -64,7 +64,6 @@ export function battleStory(game: GameState, b: BattleReport): Story {
     intro.push({ text: 'Обороной никто не командует — гарнизон воюет вполсилы!', tone: 'bad' });
   }
   if (det && !b.field) {
-    if (det.def.fort > 0) intro.push({ text: `Защитники укрылись за укреплениями ${det.def.fort}-го уровня.`, tone: 'note' });
     if (det.def.terrain >= 1.3) intro.push({ text: 'Граница проходит по холмам и горам — наступать тяжело.', tone: 'note' });
     else if (det.def.terrain >= 1.12) intro.push({ text: 'Граница поросла лесами — удобно обороняться.', tone: 'note' });
     if (det.def.front < 0.98)
@@ -78,7 +77,6 @@ export function battleStory(game: GameState, b: BattleReport): Story {
   else if (ratio < 0.45) intro.push({ text: 'Нападающие явно переоценили свои силы.', tone: 'note' });
   else if (r > 0.85) intro.push({ text: 'Силы почти равны — исход решат мелочи.', tone: 'note' });
 
-  const fort = det?.def.fort ?? 0;
   const terr = det?.def.terrain ?? 1;
   const aOrders = b.field
     ? ['Всем в атаку', 'Обойти с фланга', 'Конница — вперёд', 'Лучникам — залп']
@@ -87,7 +85,6 @@ export function battleStory(game: GameState, b: BattleReport): Story {
         'Обойти с фланга',
         'Конница — вперёд',
         'Обстрелять позиции',
-        ...(fort > 0 ? ['Штурмовать укрепления'] : []),
         ...(terr >= 1.3 ? ['Пробиваться через перевалы'] : []),
       ];
   const dOrders = b.field
@@ -96,7 +93,6 @@ export function battleStory(game: GameState, b: BattleReport): Story {
         'Держать оборону',
         'Контратака',
         'Лучникам — залп',
-        ...(fort > 0 ? ['Огонь со стен'] : []),
         ...(terr >= 1.12 ? ['Засада'] : []),
       ];
 

@@ -42,8 +42,7 @@ export function attackOpportunity(state: GameState, geo: Geo, a: number, t: numb
     (it.soldiers * frontFactorGeo(geo, a, t) * helpMult + it.population * 0.002) *
     milDefAt(it.levels[S_MIL]) *
     (it.generals > 0 ? genFactor(it.bestExp) : B.noGeneral) *
-    borderDefense(geo, a, t) *
-    (1 + (it.forts[a] ?? 0) * B.fortBonus);
+    borderDefense(geo, a, t);
   const s = c.soldiers * 0.7;
   const A = s * sciMult(c, S_MIL) * attackFactor(g) * morale(c.happiness);
   const ratio = A / Math.max(1, D);

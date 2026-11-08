@@ -6,21 +6,17 @@ import { defaultOrders } from '../core/game';
 import { computeGeo } from '../core/geo';
 import { battleVisible } from '../core/intel';
 import type { GameState, Orders } from '../core/types';
-import { ArmyPanel } from './ArmyPanel';
-import { Seg, Swatch } from './common';
-import { EconomyPanel } from './EconomyPanel';
+import { Swatch } from './common';
 import { OrdersPanel } from './OrdersPanel';
 import { DiplomacyPanel } from './DiplomacyPanel';
 import { autoTasks } from './autoGenerals';
 import { attackArrow, centroids, ownerAtYear } from './mapGeometry';
 import { MapView, type Arrow } from './MapView';
 import { NewsPanel, YearView } from './NewsPanel';
-import { SciencePanel } from './SciencePanel';
 import { saveGame } from './storage';
 import { WorldPanel } from './WorldPanel';
 
-type Tab = 'orders' | 'diplomacy' | 'world' | 'news' | 'details';
-type Detail = 'economy' | 'science' | 'army';
+type Tab = 'orders' | 'diplomacy' | 'world' | 'news';
 
 function makeDrafts(g: GameState): Record<number, Orders> {
   const res: Record<number, Orders> = {};
@@ -48,7 +44,6 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
   const [handoff, setHandoff] = useState(humans.length > 1);
   const [showReport, setShowReport] = useState(false);
   const [tab, setTab] = useState<Tab>(viewer != null ? 'orders' : 'world');
-  const [detail, setDetail] = useState<Detail>('economy');
   const [selected, setSelected] = useState<number | null>(null);
   const [attackTarget, setAttackTarget] = useState<number | null>(null);
   const [dipTarget, setDipTarget] = useState<number | null>(null);
@@ -184,7 +179,6 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         { id: 'diplomacy', label: 'Дипломатия' },
         { id: 'world', label: 'Мир' },
         { id: 'news', label: 'События' },
-        { id: 'details', label: 'Подробно' },
       ]
     : [
         { id: 'world', label: 'Мир' },
@@ -357,24 +351,6 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
                   setSelected(id);
                 }}
               />
-            )}
-            {activeTab === 'details' && panelProps && (
-              <>
-                <div className="detail-switch">
-                  <Seg<Detail>
-                    value={detail}
-                    onChange={setDetail}
-                    options={[
-                      { value: 'economy', label: 'Хозяйство' },
-                      { value: 'science', label: 'Наука' },
-                      { value: 'army', label: 'Армия' },
-                    ]}
-                  />
-                </div>
-                {detail === 'economy' && <EconomyPanel {...panelProps} />}
-                {detail === 'science' && <SciencePanel {...panelProps} />}
-                {detail === 'army' && <ArmyPanel {...panelProps} target={attackTarget} onTarget={onTarget} />}
-              </>
             )}
             {activeTab === 'world' && <WorldPanel game={game} geo={geo} viewer={viewer} selected={selected} onSelect={onSelect} />}
             {activeTab === 'news' && <NewsPanel game={game} viewer={viewer} nbs={myNbs} />}

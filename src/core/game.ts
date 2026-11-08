@@ -13,7 +13,6 @@ import {
   type GeneralOffer,
   type Orders,
   type PersonalityId,
-  type TraitId,
 } from './types';
 
 export const MAP_CPC: Record<GameSettings['mapSize'], number> = { small: 110, normal: 170, large: 250 };
@@ -32,22 +31,10 @@ export const DEFAULT_SETTINGS: GameSettings = {
 };
 
 const PERSONALITIES: PersonalityId[] = ['aggressor', 'scientist', 'merchant', 'cunning', 'balanced'];
-const TRAITS: TraitId[] = ['cautious', 'dashing', 'beloved', 'strategist', 'defender', 'scholar', 'veteran', 'sickly', 'hardy'];
-const CONFLICTS: [TraitId, TraitId][] = [
-  ['cautious', 'dashing'],
-  ['sickly', 'hardy'],
-];
 
 export function randomGeneral(rng: Rng, id: number): General {
   let exp = Math.round(rng.next() ** 2 * 32);
   if (rng.chance(0.07)) exp += rng.int(15, 30);
-  const traits: TraitId[] = [];
-  if (rng.chance(0.55)) traits.push(rng.pick(TRAITS));
-  if (rng.chance(0.15)) {
-    const t = rng.pick(TRAITS);
-    const clash = CONFLICTS.some(([a, b]) => (traits.includes(a) && t === b) || (traits.includes(b) && t === a));
-    if (!traits.includes(t) && !clash) traits.push(t);
-  }
   return {
     id,
     name: generalName(rng),
@@ -55,7 +42,6 @@ export function randomGeneral(rng: Rng, id: number): General {
     exp,
     speed: rng.int(1, 10),
     intellect: rng.int(1, 10),
-    traits,
     battles: 0,
     wins: 0,
     task: { type: 'defend' },
@@ -64,7 +50,6 @@ export function randomGeneral(rng: Rng, id: number): General {
 
 export function generalPrice(g: General, year: number, cpc: number): number {
   let p = 12000 + g.exp * 900 + g.speed * 3000 + g.intellect * 3500;
-  for (const t of g.traits) p += t === 'sickly' ? -6000 : 7000;
   if (g.age > 48) p *= 0.75;
   return Math.round((p * costScale(cpc) * (1 + 0.02 * (year - 1))) / 100) * 100;
 }
@@ -125,7 +110,6 @@ export function createGame(settings: GameSettings): GameState {
       },
       generals: [],
       offers: [],
-      forts: {},
     });
   }
 
@@ -160,7 +144,6 @@ export function createGame(settings: GameSettings): GameState {
       exp: 10,
       speed: 4,
       intellect: 4,
-      traits: [],
       battles: 0,
       wins: 0,
       task: { type: 'defend' },
@@ -195,7 +178,6 @@ export function defaultOrders(c: Country): Orders {
     buyOffers: [],
     dismissGenerals: [],
     tasks,
-    buildForts: [],
   };
 }
 

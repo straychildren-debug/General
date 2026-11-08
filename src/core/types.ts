@@ -14,16 +14,6 @@ export const TER_FOREST = 2;
 export const TER_HILLS = 3;
 export const TER_MOUNT = 4;
 
-export type TraitId =
-  | 'cautious'
-  | 'dashing'
-  | 'beloved'
-  | 'strategist'
-  | 'defender'
-  | 'scholar'
-  | 'veteran'
-  | 'sickly'
-  | 'hardy';
 
 export type PersonalityId = 'aggressor' | 'scientist' | 'merchant' | 'cunning' | 'balanced';
 export type Difficulty = 'easy' | 'normal' | 'hard' | 'master';
@@ -42,7 +32,6 @@ export interface General {
   exp: number;
   speed: number;
   intellect: number;
-  traits: TraitId[];
   battles: number;
   wins: number;
   task: GeneralTask;
@@ -82,7 +71,6 @@ export interface Country {
   science: Science;
   generals: General[];
   offers: GeneralOffer[];
-  forts: Record<number, number>; // id соседа -> уровень укреплений
 }
 
 export interface GameSettings {
@@ -141,7 +129,6 @@ export interface BattleSide {
   mil: number; // множитель военной мощи
   gen: number; // множитель генерала
   exp: number | null; // опыт генерала (null — без генерала)
-  traits: TraitId[];
   morale: number;
 }
 
@@ -149,7 +136,6 @@ export interface BattleDetails {
   atk: BattleSide;
   def: BattleSide & {
     terrain: number;
-    fort: number; // уровень укреплений
     front: number; // доля гарнизона на этом участке границы
     total: number; // весь гарнизон страны
     militia: number;
@@ -252,5 +238,4 @@ export interface Orders {
   buyOffers: number[];
   dismissGenerals: number[];
   tasks: Record<number, GeneralTask>;
-  buildForts: number[];
 }

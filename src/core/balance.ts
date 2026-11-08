@@ -1,4 +1,4 @@
-import type { Country, General, TraitId } from './types';
+import type { Country, General } from './types';
 
 /** Свойства местности: плодородие, вместимость населения, оборона. */
 export const TERRAIN_INFO = [
@@ -41,9 +41,6 @@ export const B = {
   maxGenerals: 8,
   offersPerYear: 3,
 
-  fortCost: 30000,
-  fortBonus: 0.1,
-  maxFort: 4,
 
   noGeneral: 0.5,
   battleRand: 0.12,
@@ -110,52 +107,25 @@ export function generalUpkeep(g: General, cpc: number): number {
   return (B.genUpkeep + g.exp * B.genUpkeepPerExp) * costScale(cpc);
 }
 
-export function fortCost(level: number, cpc: number): number {
-  return B.fortCost * (level + 1) * costScale(cpc);
-}
-
-export const TRAIT_INFO: Record<TraitId, { name: string; desc: string; good: boolean }> = {
-  cautious: { name: 'Осторожный', desc: '−30% своих потерь, −25% захвата земли', good: true },
-  dashing: { name: 'Лихой', desc: '+35% захвата земли, +20% своих потерь', good: true },
-  beloved: { name: 'Любимец солдат', desc: '+10% к силе войска', good: true },
-  strategist: { name: 'Стратег', desc: '+15% к силе в наступлении', good: true },
-  defender: { name: 'Мастер обороны', desc: '+25% к силе в обороне', good: true },
-  scholar: { name: 'Самоучка', desc: '+50% опыта при учёбе', good: true },
-  veteran: { name: 'Закалённый', desc: '+50% опыта за сражения', good: true },
-  sickly: { name: 'Слабое здоровье', desc: 'раньше уходит на покой', good: false },
-  hardy: { name: 'Крепкий', desc: 'служит дольше', good: true },
-};
-
-export function has(g: General, t: TraitId): boolean {
-  return g.traits.includes(t);
-}
-
+/** Множитель генерала в наступлении — только от опыта. */
 export function attackFactor(g: General): number {
-  return genFactor(g.exp) * (has(g, 'beloved') ? 1.1 : 1) * (has(g, 'strategist') ? 1.15 : 1);
+  return genFactor(g.exp);
 }
 
+/** Множитель обороны: генерал по опыту; без генерала гарнизон воюет вполсилы. */
 export function defendFactor(g: General | null): number {
-  if (!g) return B.noGeneral;
-  return genFactor(g.exp) * (has(g, 'beloved') ? 1.1 : 1) * (has(g, 'defender') ? 1.25 : 1);
+  return g ? genFactor(g.exp) : B.noGeneral;
 }
 
-export function lossMod(g: General | null): number {
-  if (!g) return 1;
-  return has(g, 'cautious') ? 0.7 : has(g, 'dashing') ? 1.2 : 1;
+/** Возраст, к которому генерал обычно умирает от старости. */
+export function retireAge(_g: General): number {
+  return 67;
 }
 
-export function captureMod(g: General): number {
-  return has(g, 'cautious') ? 0.75 : has(g, 'dashing') ? 1.35 : 1;
-}
-
-export function retireAge(g: General): number {
-  return has(g, 'sickly') ? 58 : has(g, 'hardy') ? 76 : 67;
-}
-
+/** Опыт за год учёбы. */
 export function studyGain(g: General): number {
-  return g.intellect * 1.3 * (has(g, 'scholar') ? 1.5 : 1);
+  return g.intellect * 1.3;
 }
-
 /** Доли потерь победителя и проигравшего при соотношении сил r = слабый/сильный ∈ (0, 1]. */
 export function battleLosses(r: number): { win: number; lose: number } {
   const win = 0.05 + 0.45 * r * r;
@@ -165,7 +135,7 @@ export function battleLosses(r: number): { win: number; lose: number } {
 
 export function captureCount(cpc: number, g: General, ratio: number, rand01: number): number {
   const k = Math.min(2, Math.sqrt(Math.max(1, ratio)));
-  return Math.max(1, Math.round(cpc * B.captureBase * g.speed * k * captureMod(g) * (0.85 + 0.3 * rand01)));
+  return Math.max(1, Math.round(cpc * B.captureBase * g.speed * k * (0.85 + 0.3 * rand01)));
 }
 
 /** Лучший генерал среди назначенных на оборону. */

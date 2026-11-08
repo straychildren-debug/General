@@ -1,4 +1,4 @@
-import { B, fortCost, generalUpkeep, recruitCost, sciMult } from './balance';
+import { B, generalUpkeep, recruitCost, sciMult } from './balance';
 import type { Geo } from './geo';
 import { S_AGRI, S_DENS, S_ECON, S_GROW, S_SCI, type Country, type GameState, type Orders } from './types';
 
@@ -124,7 +124,6 @@ export interface Forecast {
   soldierCost: number;
   scientistCost: number;
   generalCost: number;
-  fortCost: number;
   dipOnce: number; // разовые платежи по договорам
   tribIn: number; // дань, которую получим
   tribOut: number; // дань, которую платим
@@ -162,8 +161,6 @@ export function forecast(state: GameState, geo: Geo, c: Country, o: Orders): For
     const off = c.offers.find((x) => x.id === id);
     if (off) generalCost += off.price;
   }
-  let fc = 0;
-  for (const nb of new Set(o.buildForts)) fc += fortCost(c.forts[nb] ?? 0, state.cellsPerCountry);
   // Дипломатия: разовые платежи по договорённостям и дань этого года
   let dipOnce = 0;
   let tribIn = 0;
@@ -180,7 +177,7 @@ export function forecast(state: GameState, geo: Geo, c: Country, o: Orders): For
     if (t.payer === c.id) tribOut += t.yearly;
     else tribIn += t.yearly;
   }
-  const spend = hireCost + generalCost + fc + dipOnce;
+  const spend = hireCost + generalCost + dipOnce;
   const moneyAfterPurchases = c.money - spend;
 
   const sim: Country = {
@@ -204,7 +201,6 @@ export function forecast(state: GameState, geo: Geo, c: Country, o: Orders): For
     soldierCost,
     scientistCost,
     generalCost,
-    fortCost: fc,
     spend,
     upkeepSoldiers: e.upkeepSoldiers,
     upkeepScientists: e.upkeepScientists,

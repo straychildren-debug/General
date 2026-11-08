@@ -6,10 +6,8 @@ import {
   battleLosses,
   captureAmount,
   defendFactor,
-  fortCost,
   genFactor,
   levelCost,
-  lossMod,
   maxRecruits,
   milDefAt,
   recruitCost,
@@ -155,7 +153,7 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
   const myMil = sciMult(c, S_MIL);
   const myMorale = morale(c.happiness);
   const myDefPer = (n: number) =>
-    milDefAt(c.science.level[S_MIL]) * frontFactorGeo(geo, n, id) * defendFactor(defGen) * borderDefense(geo, n, id) * (1 + (c.forts[n] ?? 0) * B.fortBonus) * myMorale;
+    milDefAt(c.science.level[S_MIL]) * frontFactorGeo(geo, n, id) * defendFactor(defGen) * borderDefense(geo, n, id) * myMorale;
   // Затишье: давно не воевали и казна полна — пора рискнуть
   let lastWar = 99;
   for (const rep of state.reports)
@@ -228,7 +226,6 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
       milDefAt(it.levels[S_MIL]) *
       (it.generals > 0 ? genFactor(it.bestExp) : B.noGeneral) *
       bd *
-      (1 + (it.forts[id] ?? 0) * B.fortBonus) *
       morale(it.happiness);
     const outFrac = Math.min(0.4, 0.1 * (attacksBy.get(t) ?? 0)) * sk.opp;
     const jackal = Math.min(3, attackedLastYear.get(t) ?? 0);
@@ -247,10 +244,10 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
     const rr = Math.min(ratio, 1 / ratio);
     const tCells = Math.max(1, cellsNow ?? tc.cells);
     const lw = battleLosses(rr);
-    const survivors = s * (1 - lw.win * lossMod(g));
+    const survivors = s * (1 - lw.win);
     const cells = captureAmount(cpc, tCells, g, ratio, 0.5, survivors, it.population / Math.max(1, tc.cells));
     const lossFrac = p * lw.win + (1 - p) * lw.lose;
-    const lossCost = s * lossFrac * lossMod(g) * soldierValue;
+    const lossCost = s * lossFrac * soldierValue;
     // Уничтожение соседа: забираем всё и избавляемся от угрозы навсегда
     const elimBonus = tCells - cells <= elimCells ? tCells * cellValue + it.money * 0.5 + (threat.get(tg.t) ?? 0) * soldierValue : 0;
     const gain =
@@ -349,7 +346,6 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
       const years = clamp(retireAge(g) - g.age - 2, 0, 10);
       const future = g.exp + studyGain(g) * years * 0.5 * sk.train;
       let sc = genFactor(future) * (1 + 0.05 * g.speed);
-      for (const t of g.traits) sc *= t === 'sickly' ? 0.85 : 1.06;
       return sc;
     };
     const best = offers.reduce((a, b) => (score(b) / b.price > score(a) / a.price ? b : a));
@@ -418,21 +414,6 @@ export function aiOrders(state: GameState, id: number, geo: Geo): Orders {
     if (c.soldiers > desired && c.soldiers > maxSustain) o.hireSoldiers = -Math.floor((c.soldiers - desired) * 0.5);
   }
   if (hiredS > 0) o.hireSoldiers = hiredS;
-
-  // 5. Укрепления против главной угрозы
-  if (nbs.length) {
-    const top = nbs.reduce((a, b) => (threat.get(b)! > threat.get(a)! ? b : a));
-    const lvl = c.forts[top] ?? 0;
-    const tv = threat.get(top)!;
-    if (lvl < 4 && tv > c.soldiers * 0.4) {
-      const cost = fortCost(lvl, cpc);
-      const benefit = ((tv * B.fortBonus) / (1 + lvl * B.fortBonus)) * (soldierPrice + B.soldierUpkeep * H * 0.5);
-      if (cost < benefit && budget > cost * 1.5) {
-        o.buildForts.push(top);
-        budget -= cost;
-      }
-    }
-  }
 
   // 6. Дополнительные генералы
   const desiredGens = 2 + (ps.aggression > 1.2 ? 1 : 0) + (H >= 16 ? 1 : 0);

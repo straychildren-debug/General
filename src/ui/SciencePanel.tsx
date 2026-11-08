@@ -1,7 +1,7 @@
 import { B, levelCost, multAt, sciMult, SCIENCE_INFO } from '../core/balance';
 import { fmtShort, years as yearsText } from '../core/format';
 import { S_MIL, S_SCI } from '../core/types';
-import { Card, Slider, type PanelProps } from './common';
+import { Slider, type PanelProps } from './common';
 
 /** Коротко: что даёт уровень. */
 function effectText(i: number, level: number): string {
@@ -89,15 +89,5 @@ export function ScienceRows({ game, me, draft, setDraft, fc, compact }: PanelPro
         })}
       </div>
     </>
-  );
-}
-
-export function SciencePanel(props: PanelProps) {
-  return (
-    <div className="panel-body">
-      <Card title={`Учёные · ${fmtShort(props.fc.scientists)}`}>
-        <ScienceRows {...props} />
-      </Card>
-    </div>
   );
 }
