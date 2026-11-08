@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { B, levelCost, maxRecruits, multAt, recruitCost, sciMult, SCIENCE_INFO, type RecruitKind } from '../core/balance';
+import { B, levelCost, sciNeed, maxRecruits, multAt, recruitCost, sciMult, SCIENCE_INFO, type RecruitKind } from '../core/balance';
 import { battleOdds } from '../core/estimate';
 import { forecast } from '../core/econ';
 import { fmtShort, fmtSigned, years } from '../core/format';
@@ -148,13 +148,6 @@ function Recruit({
   );
 }
 
-/** Тысячи с округлением в нужную сторону: «отправлено» — вниз, «нужно» — вверх, чтобы «10/10» значило «хватает». */
-function fmtK(n: number, dir: 'up' | 'down'): string {
-  if (n <= 0) return '0';
-  const k = dir === 'up' ? Math.ceil(n / 1000) : Math.floor(n / 1000);
-  return k === 0 ? '<1' : k.toLocaleString('ru-RU');
-}
-
 /** Плитка ресурса: значок в кольце + крупное число. */
 function Tile({
   ring,
@@ -225,16 +218,18 @@ function SciCard({
   const s = SCIENCE_INFO[i];
   const left = Math.max(0, cost - prog);
   const gain = n * ptsPer;
-  const need = Math.ceil(left / ptsPer);
-  const yrs = n > 0 ? Math.ceil(left / gain) : null;
+  // «Нужно» — целыми тысячами; этого числа хватает (правило sciNeed: показано 10 — хватит и 9 500)
+  const nd = sciNeed(left, ptsPer);
+  const need = nd.shown;
+  const enough = n > 0 && need > 0 && n >= nd.req;
+  const yrs = n > 0 ? (enough ? 1 : Math.ceil(left / gain)) : null;
   const next = i === S_MIL ? `атака +${(level + 1) * 10}%` : `${s.effect} +${Math.round((multAt(i, level + 1) - 1) * 100)}%`;
-  const enough = n >= need && need > 0;
   const mark = total > 0 ? Math.min(1, need / total) : 1;
   const step = total >= 20000 ? 1000 : 100;
   return (
     <div className={'op-sc' + (n > 0 ? ' on' : '') + (enough ? ' done' : '')} title={`${s.name}. ${level + 1}-й уровень даст: ${next}`}>
       <div className="op-sc-head">
-        <Ring value={prog / cost} ghost={(prog + gain) / cost} tone={n > 0 ? 'gold' : 'muted'} size={32}>
+        <Ring value={prog / cost} ghost={enough ? 1 : (prog + gain) / cost} tone={n > 0 ? 'gold' : 'muted'} size={32}>
           <Icon name={SCIENCE_ICONS[i]} size={15} />
         </Ring>
         <span className="op-sc-title" title={yrs === null ? 'не изучается' : yrs <= 1 ? 'уровень откроют в этом году' : `уровень откроют через ${years(yrs)}`}>
@@ -248,10 +243,10 @@ function SciCard({
       <div className="op-sc-row">
         <div className="op-sc-slider">
           <Slider value={n} min={0} max={Math.max(1, total)} step={step} onChange={onSet} />
-          {total > 0 && <i className={'op-mark' + (need > total ? ' over' : '')} style={{ left: `calc(${mark * 100}% - ${mark * 16 - 8}px)` }} />}
+          {total > 0 && <i className={'op-mark' + (nd.req > total ? ' over' : '')} style={{ left: `calc(${mark * 100}% - ${mark * 16 - 8}px)` }} />}
         </div>
         <span className="op-sc-count" title="Учёных отправлено / нужно, чтобы открыть уровень за год">
-          <b>{fmtK(n, 'down')}</b>/<span className={need > total ? 'neg' : 'pos'}>{fmtK(need, 'up')}</span>
+          <b>{fmtShort(n)}</b>/<span className={nd.req > total ? 'neg' : 'pos'}>{fmtShort(need)}</span>
         </span>
       </div>
       <div className="op-sc-quick">

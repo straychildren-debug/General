@@ -80,6 +80,17 @@ export function sciRel(c: Country, i: number): number {
   return multAt(i, L + 1) / multAt(i, L) - 1;
 }
 
+/**
+ * Сколько учёных нужно, чтобы открыть уровень за год. Показываем целыми тысячами (обычное
+ * округление), и этого округлённого числа достаточно: уровень откроется, если учёных не меньше
+ * «показанного минус полтысячи» (показано 10 — хватит и 9 500).
+ */
+export function sciNeed(leftPts: number, ptsPer: number): { shown: number; req: number } {
+  if (leftPts <= 0 || ptsPer <= 0) return { shown: 0, req: 0 };
+  const shown = Math.max(1000, Math.round(leftPts / ptsPer / 1000) * 1000);
+  return { shown, req: Math.min(Math.ceil(leftPts / ptsPer), shown - 500) };
+}
+
 export function levelCost(level: number, cpc: number): number {
   return cpc * B.sciCostPerCell * Math.pow(B.sciCostGrowth, level);
 }

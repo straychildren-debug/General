@@ -12,6 +12,7 @@ import {
   morale,
   retireAge,
   sciMult,
+  sciNeed,
   SCIENCE_INFO,
   scoutPrice,
   studyGain,
@@ -27,6 +28,7 @@ import { Rng } from './rng';
 import {
   S_GROW,
   S_MIL,
+  S_SCI,
   type BattleReport,
   type Country,
   type BattleSide,
@@ -765,9 +767,14 @@ function yearEconomy(s: GameState, geo: Geo, harvestMult: Map<number, number>, r
     else if (dp <= -1 && st.unfed <= 0) note(report, c, `Население уменьшилось на ${fmt(-dp)} человек`, false);
 
     // Наука: работают только распределённые учёные
+    const ptsPer = B.ptsPerSci * sciMult(c, S_SCI);
     for (let i = 0; i < c.science.level.length; i++) {
-      c.science.progress[i] += (e.sciencePts * c.science.alloc[i]) / 100;
       let cost = levelCost(c.science.level[i], cpc);
+      const pts = (e.sciencePts * c.science.alloc[i]) / 100;
+      // Учёных хватило «по округлению» (см. sciNeed) — уровень открывается в этом году
+      const need = sciNeed(cost - c.science.progress[i], ptsPer);
+      if (pts > 0 && pts / ptsPer >= need.req && c.science.progress[i] + pts < cost) c.science.progress[i] = cost;
+      else c.science.progress[i] += pts;
       while (c.science.progress[i] >= cost) {
         c.science.progress[i] -= cost;
         c.science.level[i]++;
