@@ -1,5 +1,7 @@
 import { scoutPrice } from '../core/balance';
 import { allianceAgainst, disgraced, honorOf, rel, treatyBetween } from '../core/diplomacy';
+import { DealBox } from './DealBox';
+import { Portrait, rulerOf, warlike, WAR_COLORS } from './rulers';
 import { fmtShort, pct, years } from '../core/format';
 import type { Geo } from '../core/geo';
 import { estimate, scoutReport } from '../core/intel';
@@ -23,7 +25,7 @@ export function CountryCard({
   setDraft,
   id,
   onClose,
-  onDiplomacy,
+  dealOpen,
 }: {
   game: GameState;
   geo: Geo;
@@ -32,7 +34,7 @@ export function CountryCard({
   setDraft: (f: (o: Orders) => Orders) => void;
   id: number;
   onClose: () => void;
-  onDiplomacy: (id: number) => void;
+  dealOpen?: boolean;
 }) {
   const c = game.countries[id];
   const neighbor = geo.neighbors[me.id].includes(id);
@@ -59,6 +61,8 @@ export function CountryCard({
     return t.type === 'attack' && t.target === id;
   });
   const cancel = (g: General) => setDraft((o) => ({ ...o, tasks: autoTasks(me, { ...o.tasks, [g.id]: { type: 'defend' } }, o.dismissGenerals) }));
+  const ruler = rulerOf(game, id);
+  const war = warlike(game, id);
   const ratio = it.known ? it.soldiers / Math.max(1, it.soldiers + me.soldiers) : null;
 
   if (!c.alive) {
@@ -82,10 +86,24 @@ export function CountryCard({
   return (
     <div className="ccard" style={{ ['--c' as string]: c.color }}>
       <div className="ccard-head">
-        <span className="ccard-name">
-          <Swatch color={c.color} /> {c.name}
-        </span>
-        {neighbor && <span className="tag nb">сосед</span>}
+        <Portrait ruler={ruler} color={c.color} size={58} />
+        <div className="ccard-who">
+          <span className="ccard-name">
+            {c.name}
+            {neighbor && <span className="tag nb">сосед</span>}
+          </span>
+          <span className="ccard-ruler">
+            {ruler.title} {ruler.name}
+          </span>
+          <span className="ccard-war" style={{ color: WAR_COLORS[war.level] }} title={`Нрав правителя и ${war.attacks} нападений за последние 10 лет`}>
+            <span className="ccard-war-scale">
+              {[0, 1, 2, 3, 4].map((k) => (
+                <i key={k} style={{ background: k <= war.level ? WAR_COLORS[war.level] : undefined }} />
+              ))}
+            </span>
+            {war.label}
+          </span>
+        </div>
         <button className="ccard-x" onClick={onClose} aria-label="Закрыть">
           ✕
         </button>
@@ -97,8 +115,13 @@ export function CountryCard({
         <span title="Население, тыс.">
           <Icon name="people" size={15} /> {fmtShort(c.population)}
         </span>
+        <span title={war.attacks ? `нападений за 10 лет: ${war.attacks}` : 'за 10 лет ни на кого не нападала'}>
+          <Icon name="swords" size={15} /> {war.attacks}
+        </span>
       </div>
 
+      <div className="ccard-body">
+        <div className="ccard-col">
       {/* Разведка */}
       <section className="ccard-sec">
         <div className="ccard-h">
@@ -166,32 +189,6 @@ export function CountryCard({
         </div>
       </section>
 
-      {/* Отношения */}
-      <section className="ccard-sec">
-        <div className="ccard-h">
-          <Icon name="advisor" size={15} /> Отношения
-        </div>
-        <div className="ccard-rel">
-          <Mood value={r} size={34} />
-          <div>
-            <b style={{ color: MOOD[moodLevel(r)].color }}>{MOOD[moodLevel(r)].label}</b>
-            <div className="muted small">
-              {treaty ? (ally ? `совместный поход до ${treaty.until} года` : `мир до ${treaty.until} года`) : 'договоров нет'}
-              {disgraced(game, id) && ' · в опале'}
-            </div>
-          </div>
-          <span className="ccard-honor" title="Честь этой страны">
-            <Honor value={honorOf(game, id)} />
-          </span>
-        </div>
-        {allianceAgainst(game, me.id, id) && <div className="muted small">У нас договор о совместном походе против этой страны.</div>}
-        <div className="ccard-actions">
-          <button className="btn small" onClick={() => onDiplomacy(id)}>
-            Договориться
-          </button>
-        </div>
-      </section>
-
       {/* Поход */}
       <section className="ccard-sec">
         <div className="ccard-h">
@@ -221,6 +218,32 @@ export function CountryCard({
           <AttackForm key={id} game={game} geo={geo} me={me} draft={draft} setDraft={setDraft} tgt={id} />
         ) : null}
       </section>
+        </div>
+        <div className="ccard-col">
+      {/* Отношения */}
+      <section className="ccard-sec">
+        <div className="ccard-h">
+          <Icon name="advisor" size={15} /> Отношения
+        </div>
+        <div className="ccard-rel">
+          <Mood value={r} size={34} />
+          <div>
+            <b style={{ color: MOOD[moodLevel(r)].color }}>{MOOD[moodLevel(r)].label}</b>
+            <div className="muted small">
+              {treaty ? (ally ? `совместный поход до ${treaty.until} года` : `мир до ${treaty.until} года`) : 'договоров нет'}
+              {disgraced(game, id) && ' · в опале'}
+            </div>
+          </div>
+          <span className="ccard-honor" title="Честь этой страны">
+            <Honor value={honorOf(game, id)} />
+          </span>
+        </div>
+        {allianceAgainst(game, me.id, id) && <div className="muted small">У нас договор о совместном походе против этой страны.</div>}
+        <DealBox game={game} geo={geo} me={me} draft={draft} setDraft={setDraft} tgt={id} startOpen={dealOpen} />
+      </section>
+
+        </div>
+      </div>
     </div>
   );
 }

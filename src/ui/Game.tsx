@@ -8,17 +8,18 @@ import { battleVisible } from '../core/intel';
 import type { BattleReport, GameState, Orders } from '../core/types';
 import { BattleReportView } from './BattleReportView';
 import { CountryCard } from './CountryCard';
-import { Swatch } from './common';
+import { Honor, MOOD, moodLevel, Swatch } from './common';
+import { disgraced, honorOf, rel } from '../core/diplomacy';
 import { OrdersPanel } from './OrdersPanel';
-import { DiplomacyPanel } from './DiplomacyPanel';
 import { autoTasks } from './autoGenerals';
 import { attackArrow, centroids, ownerAtYear } from './mapGeometry';
-import { MapView, type Arrow } from './MapView';
+import { MapView, type Arrow, type MapBadge } from './MapView';
+import { warlike, WAR_COLORS } from './rulers';
 import { NewsPanel, YearView } from './NewsPanel';
 import { saveGame } from './storage';
 import { WorldPanel } from './WorldPanel';
 
-type Tab = 'orders' | 'diplomacy' | 'world' | 'news';
+type Tab = 'orders' | 'world' | 'news';
 
 function makeDrafts(g: GameState): Record<number, Orders> {
   const res: Record<number, Orders> = {};
@@ -57,7 +58,6 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
   const [tab, setTab] = useState<Tab>(viewer != null ? 'orders' : 'world');
   const [selected, setSelected] = useState<number | null>(null);
   const [attackTarget, setAttackTarget] = useState<number | null>(null);
-  const [dipTarget, setDipTarget] = useState<number | null>(null);
   const [helpHidden, setHelpHidden] = useState(() => {
     try {
       return localStorage.getItem('polkovodets.help') === 'hidden';
@@ -170,7 +170,8 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
   }, [chronPlay, chron, game.year]);
 
   // Щелчок по своей стране — к приказам; по чужой — карточка страны на карте (разведка, отношения, поход)
-  const [card, setCard] = useState<number | null>(null);
+  const [card, setCardState] = useState<{ id: number; deal: boolean } | null>(null);
+  const setCard = (id: number | null, deal = false) => setCardState(id == null ? null : { id, deal });
   const onSelect = (id: number | null) => {
     setSelected(id);
     if (id == null || viewer == null) {
@@ -183,10 +184,10 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
       setTab('orders');
     } else setCard(id);
   };
+  // «Договориться» — карточка страны с открытыми переговорами
   const openDiplomacy = (id: number) => {
-    setDipTarget(id);
     setSelected(id);
-    setTab('diplomacy');
+    setCard(id, true);
   };
   const onTarget = (id: number | null) => {
     setAttackTarget(id);
@@ -196,7 +197,6 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
   const tabs: { id: Tab; label: string }[] = viewer != null
     ? [
         { id: 'orders', label: 'Приказы' },
-        { id: 'diplomacy', label: 'Дипломатия' },
         { id: 'world', label: 'Мир' },
         { id: 'news', label: 'События' },
       ]
@@ -204,6 +204,22 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         { id: 'world', label: 'Мир' },
         { id: 'news', label: 'События' },
       ];
+  // Значки на карте: отношение к нам, нрав, население
+  const badges = useMemo<(MapBadge | null)[]>(
+    () =>
+      game.countries.map((c) => {
+        if (!c.alive) return null;
+        const r = viewer != null && c.id !== viewer ? rel(game, c.id, viewer) : null;
+        const lvl = r == null ? 0 : moodLevel(r);
+        const w = c.id === viewer ? null : warlike(game, c.id);
+        return {
+          mood: r == null ? null : { color: MOOD[lvl].color, curve: MOOD[lvl].curve, angry: lvl === 0 },
+          war: w ? { level: w.level, color: WAR_COLORS[w.level] } : null,
+          pop: fmtShort(c.population),
+        };
+      }),
+    [game, viewer],
+  );
   const activeTab = tabs.some((t) => t.id === tab) ? tab : tabs[0].id;
   const panelProps = me && draft && fc ? { game, geo, me, draft, setDraft, fc, onSelect } : null;
   const lastRep = game.reports[game.reports.length - 1];
@@ -223,6 +239,15 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
           </div>
         ) : (
           <div className="country-chip muted">Наблюдатель</div>
+        )}
+        {me && (
+          <div
+            className={'honor-chip' + (disgraced(game, me.id) ? ' shamed' : '')}
+            title={disgraced(game, me.id) ? 'Вы нарушили договор — с вами не договариваются' : 'Ваша честь: нарушите договор — потеряете её, и долго никто не захочет договариваться'}
+          >
+            <span className="stat-label">Честь</span>
+            <Honor value={honorOf(game, me.id)} />
+          </div>
         )}
         <div className="year">
           <span className="muted">Год</span> <b>{game.year}</b>
@@ -267,6 +292,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
             onSelect={onSelect}
             arrows={arrows}
             mode={mode}
+            badges={badges}
           />
           <div className="map-tools">
             <button className={mode === 'political' ? 'on' : ''} onClick={() => setMode('political')}>
@@ -308,20 +334,20 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
               </button>
             </div>
           )}
-          {card != null && me && draft && card !== viewer && (
+          {card != null && me && draft && card.id !== viewer && (
             <CountryCard
-              key={card}
+              key={card.id + (card.deal ? 'd' : '')}
               game={game}
               geo={geo}
               me={me}
               draft={draft}
               setDraft={setDraft}
-              id={card}
+              id={card.id}
+              dealOpen={card.deal}
               onClose={() => {
                 setCard(null);
                 setSelected(null);
               }}
-              onDiplomacy={openDiplomacy}
             />
           )}
           <div className="legend">
@@ -372,16 +398,6 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
                 onTarget={onTarget}
                 onDiplomacy={openDiplomacy}
                 onTab={(t) => setTab(t as Tab)}
-              />
-            )}
-            {activeTab === 'diplomacy' && panelProps && (
-              <DiplomacyPanel
-                {...panelProps}
-                target={dipTarget}
-                onTarget={(id) => {
-                  setDipTarget(id);
-                  setSelected(id);
-                }}
               />
             )}
             {activeTab === 'world' && (

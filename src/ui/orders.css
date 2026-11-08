@@ -1204,3 +1204,164 @@ button.op-tile:hover {
 .ccard .op-attack {
   margin-top: 0;
 }
+
+/* Шапка карточки: портрет, правитель, нрав */
+.ccard-head {
+  align-items: flex-start;
+  gap: 10px;
+}
+.portrait {
+  flex: none;
+  border-radius: 50%;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+}
+.ccard-who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ccard-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.15;
+}
+.ccard-ruler {
+  font-size: 13px;
+  color: #c7d0dc;
+  font-style: italic;
+}
+.ccard-war {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ccard-war-scale {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+.ccard-war-scale i {
+  display: block;
+  width: 4px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.15);
+}
+.ccard-war-scale i:nth-child(1) { height: 5px; }
+.ccard-war-scale i:nth-child(2) { height: 7px; }
+.ccard-war-scale i:nth-child(3) { height: 9px; }
+.ccard-war-scale i:nth-child(4) { height: 11px; }
+.ccard-war-scale i:nth-child(5) { height: 13px; }
+
+/* Договоры в карточке */
+.deal {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.deal .dline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #0f151c;
+  border: 1px solid var(--line);
+}
+.deal .dline.ultimatum {
+  border-color: rgba(255, 106, 92, 0.5);
+  background: rgba(255, 106, 92, 0.08);
+}
+.deal .dip-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.deal .hint.first {
+  margin: 0;
+  font-size: 12px;
+}
+.deal .seg button {
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+/* Предложения других стран — вместо советника */
+.op-offers {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: calc(var(--air) * 0.6) 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(230, 180, 80, 0.45);
+  background: linear-gradient(90deg, rgba(230, 180, 80, 0.14), rgba(230, 180, 80, 0.03));
+}
+.op-offers.neg {
+  border-color: rgba(255, 106, 92, 0.55);
+  background: linear-gradient(90deg, rgba(255, 106, 92, 0.16), rgba(255, 106, 92, 0.03));
+}
+.op-offer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.op-offer-row .mood {
+  margin: 0;
+}
+.op-offer-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.op-offer-text .link {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Честь в верхней панели */
+.honor-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0 4px;
+}
+.honor-chip.shamed .honor {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+/* Карточка в две колонки, чтобы помещалась по высоте */
+.ccard {
+  width: min(600px, calc(100% - 24px));
+}
+.ccard-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+.ccard-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+@media (max-width: 1100px) {
+  .ccard-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.op-tile {
+  gap: 7px;
+  padding-left: 8px;
+  padding-right: 6px;
+}

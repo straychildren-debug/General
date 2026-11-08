@@ -9,13 +9,14 @@ import { AttackForm } from './AttackForm';
 import { Mood, Slider, type PanelProps } from './common';
 import { Icon, SCIENCE_ICONS, SCIENCE_SHORT } from './icons';
 import { Amount, Box, chanceWord, initials, Ring, Stars, strengthWord, type Tone } from './opParts';
-import { rel, treatyBetween } from '../core/diplomacy';
+import { dealText, disgraced, rel, treatyBetween } from '../core/diplomacy';
+import { EMPTY_DIP } from './DealBox';
 
 interface Props extends PanelProps {
   target: number | null;
   onTarget: (id: number | null) => void;
   onDiplomacy: (id: number) => void;
-  onTab: (tab: string) => void;
+  onTab?: (tab: string) => void;
 }
 
 /**
@@ -257,7 +258,7 @@ function SciCard({
   );
 }
 
-export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarget, onDiplomacy, onTab }: Props) {
+export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarget, onDiplomacy }: Props) {
   const pop = me.population;
   const truce = game.settings.truceYears ?? 0;
   const inTruce = game.year <= truce;
@@ -335,18 +336,18 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
     });
 
   // ── Советник: одна главная подсказка на ход ──
+  // ── Предложения других стран этого года (не принятые до конца года — отклонены) ──
+  const offers = (game.offers ?? []).filter((d) => d.to === me.id && d.year === game.year && game.countries[d.from].alive);
+  const toggleAccept = (id: number) =>
+    setDraft((o) => {
+      const dip = o.diplomacy ?? EMPTY_DIP;
+      return { ...o, diplomacy: { ...dip, accept: dip.accept.includes(id) ? dip.accept.filter((x) => x !== id) : [...dip.accept, id] } };
+    });
+
   const advice = (() => {
-    const offers = (game.offers ?? []).filter((d) => d.to === me.id && d.year === game.year && !draft.diplomacy?.accept?.includes(d.id));
-    const ult = offers.find((d) => d.ultimatum);
-    if (ult) return { tone: 'neg', text: `${game.countries[ult.from].name} требует дань — иначе нападёт.`, tab: 'diplomacy' };
+    if (disgraced(game, me.id)) return { tone: 'neg', text: 'Вы нарушили договор — с вами сейчас никто не договаривается.' };
     if (fc.unfed > 0) return { tone: 'neg', text: 'Будет голод: денег не хватит на зерно. Наймите меньше людей.' };
     if (fc.unpaid > 0) return { tone: 'neg', text: 'Казна не потянет жалованье — часть солдат разбежится. Наймите меньше.' };
-    if (offers.length)
-      return {
-        tone: 'ok',
-        text: `${game.countries[offers[0].from].name} предлагает ${offers[0].kind === 'alliance' ? 'совместный поход' : 'мир'}${offers.length > 1 ? ' (и ещё ' + (offers.length - 1) + ')' : ''}.`,
-        tab: 'diplomacy',
-      };
     if (generals.length === 0 && draft.buyOffers.length === 0)
       return { tone: 'warn', text: 'Без генерала армия не может наступать и плохо обороняется — купите генерала.' };
     if (campaigns.length > 0 && !generals.some((g) => taskOf(g).type === 'defend'))
@@ -378,42 +379,59 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
 
   return (
     <div className="panel-body orders op">
-      <div className={'op-advisor ' + advice.tone}>
-        <Icon name="advisor" size={20} />
-        <span>{advice.text}</span>
-        {'tab' in advice && advice.tab && (
-          <button className="btn small" onClick={() => onTab(advice.tab as string)}>
-            Открыть
-          </button>
-        )}
-      </div>
+      {offers.length > 0 ? (
+        <div className={'op-offers' + (offers.some((d) => d.ultimatum) ? ' neg' : '')}>
+          {offers.slice(0, 2).map((d) => {
+            const on = (draft.diplomacy?.accept ?? []).includes(d.id);
+            const cantPay = d.payer === me.id && d.once > me.money;
+            return (
+              <div className={'op-offer-row' + (d.ultimatum ? ' ult' : '')} key={d.id}>
+                <Mood value={rel(game, d.from, me.id)} size={18} />
+                <span className="op-offer-text">
+                  <button className="link" onClick={() => onDiplomacy(d.from)} title="Открыть карточку страны">
+                    {game.countries[d.from].name}
+                  </button>{' '}
+                  {d.ultimatum ? <b className="neg">требует</b> : 'предлагает'}: {dealText(game, d, me.id)}
+                </span>
+                <button className={'btn small ' + (on ? 'on' : 'primary')} onClick={() => toggleAccept(d.id)} disabled={!on && cantPay}>
+                  {on ? 'Принято ✓' : 'Принять'}
+                </button>
+              </div>
+            );
+          })}
+          {offers.length > 2 && <span className="muted small">и ещё {offers.length - 2} — в карточках стран на карте</span>}
+        </div>
+      ) : (
+        <div className={'op-advisor ' + advice.tone}>
+          <Icon name="advisor" size={20} />
+          <span>{advice.text}</span>
+        </div>
+      )}
 
       <div className="op-res">
         <Tile
           ring={
-            <Ring value={1} tone="gold">
-              <Icon name="coins" size={20} />
+            <Ring value={1} tone="gold" size={40}>
+              <Icon name="coins" size={18} />
             </Ring>
           }
           label="Казна"
           main={fmtShort(me.money)}
           sub={
             pendCost + pendSalary > 0 ? (
-              <span className="warn">с наймом → {fmtShort(moneyAfterPick)}</span>
+              <span className="warn">→ {fmtShort(moneyAfterPick)}</span>
             ) : (
-              <>
-                → {fmtShort(fc.moneyEnd)} <span className={dMoney >= 0 ? 'pos' : 'neg'}>{fmtSigned(dMoney)}</span>
-              </>
+              <span className={dMoney >= 0 ? 'pos' : 'neg'}>→ {fmtShort(fc.moneyEnd)}</span>
             )
           }
           onClick={() => setMoneyOpen(!moneyOpen)}
           on={moneyOpen}
-          title="Откуда деньги — нажмите"
+          title={`К концу года: ${fmtShort(fc.moneyEnd)} (${fmtSigned(dMoney)})${pendCost + pendSalary > 0 ? `, с выбранным наймом — ${fmtShort(moneyAfterPick)}` : ''}. Нажмите — откуда деньги.`}
         />
         <Tile
           ring={
-            <Ring value={fc.population / Math.max(1, fc.maxPop)} ghost={fc.popEnd / Math.max(1, fc.maxPop)} tone={atCap || willCap ? 'warn' : 'pos'}>
-              <Icon name="people" size={20} />
+            <Ring value={fc.population / Math.max(1, fc.maxPop)} ghost={fc.popEnd / Math.max(1, fc.maxPop)} tone={atCap || willCap ? 'warn' : 'pos'} size={40}>
+              <Icon name="people" size={18} />
             </Ring>
           }
           label="Народ"
@@ -423,19 +441,19 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
         />
         <Tile
           ring={
-            <Ring value={1} tone={foodTone}>
-              <Icon name="wheat" size={20} />
+            <Ring value={1} tone={foodTone} size={40}>
+              <Icon name="wheat" size={18} />
             </Ring>
           }
           label="Еда"
           main={food}
           mainTone={foodTone}
-          sub={hungry ? 'нет денег на зерно' : fc.grainCost > 0 ? `−${fmtShort(fc.grainCost)} на зерно` : `+${fmtShort(fc.saleRevenue)} продажа`}
+          sub={hungry ? 'нет денег на зерно' : fc.grainCost > 0 ? `−${fmtShort(fc.grainCost)} зерно` : `+${fmtShort(fc.saleRevenue)} за зерно`}
         />
         <Tile
           ring={
-            <Ring value={load} ghost={loadAfter} tone={pendSalary > 0 ? toneOf(loadAfter) : loadTone}>
-              <Icon name="scales" size={20} />
+            <Ring value={load} ghost={loadAfter} tone={pendSalary > 0 ? toneOf(loadAfter) : loadTone} size={40}>
+              <Icon name="scales" size={18} />
             </Ring>
           }
           label="Жалованье"

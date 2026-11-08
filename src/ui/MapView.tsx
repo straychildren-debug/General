@@ -29,6 +29,82 @@ interface Props {
   onSelect: (id: number | null) => void;
   arrows: Arrow[];
   mode: 'political' | 'terrain';
+  /** Значки под названием страны: отношение к нам, нрав (0–4), население */
+  badges?: (MapBadge | null)[];
+}
+
+export interface MapBadge {
+  mood: { color: string; curve: number; angry: boolean } | null;
+  war: { level: number; color: string } | null;
+  pop: string;
+}
+
+function drawBadge(ctx: CanvasRenderingContext2D, b: MapBadge, x: number, y: number, s: number, px1: number) {
+  ctx.font = `700 ${s}px Inter, system-ui, sans-serif`;
+  const r = s * 0.55;
+  const gap = s * 0.35;
+  const barW = s * 0.2;
+  const warW = b.war ? barW * 5 + barW * 0.6 * 4 : 0;
+  const popW = ctx.measureText(b.pop).width + s * 0.75;
+  const total = (b.mood ? r * 2 + gap : 0) + (b.war ? warW + gap : 0) + popW;
+  // Подложка, чтобы значки читались на любом цвете
+  const padX = s * 0.35;
+  const left = x - total / 2;
+  ctx.beginPath();
+  ctx.roundRect(left - padX, y - r - s * 0.18, total + padX * 2, r * 2 + s * 0.36, r + s * 0.18);
+  ctx.fillStyle = 'rgba(10, 14, 20, 0.62)';
+  ctx.fill();
+  let cx = left;
+  if (b.mood) {
+    const mx = cx + r;
+    ctx.beginPath();
+    ctx.arc(mx, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = b.mood.color;
+    ctx.fill();
+    ctx.lineWidth = Math.max(px1, r * 0.1);
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+    ctx.stroke();
+    ctx.fillStyle = '#1b1b1b';
+    ctx.beginPath();
+    ctx.arc(mx - r * 0.33, y - r * 0.2, r * 0.13, 0, Math.PI * 2);
+    ctx.arc(mx + r * 0.33, y - r * 0.2, r * 0.13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(mx - r * 0.42, y + r * 0.34);
+    ctx.quadraticCurveTo(mx, y + r * 0.34 + (b.mood.curve / 9) * r * 1.2, mx + r * 0.42, y + r * 0.34);
+    if (b.mood.angry) {
+      ctx.moveTo(mx - r * 0.55, y - r * 0.55);
+      ctx.lineTo(mx - r * 0.15, y - r * 0.38);
+      ctx.moveTo(mx + r * 0.55, y - r * 0.55);
+      ctx.lineTo(mx + r * 0.15, y - r * 0.38);
+    }
+    ctx.lineWidth = r * 0.16;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#1b1b1b';
+    ctx.stroke();
+    cx += r * 2 + gap;
+  }
+  if (b.war) {
+    for (let k = 0; k < 5; k++) {
+      const hgt = r * (0.7 + k * 0.28);
+      ctx.fillStyle = k <= b.war.level ? b.war.color : 'rgba(255,255,255,0.18)';
+      ctx.fillRect(cx + k * barW * 1.6, y + r * 0.85 - hgt, barW, hgt);
+    }
+    cx += warW + gap;
+  }
+  // Человечек и население
+  const hx = cx + s * 0.25;
+  ctx.fillStyle = '#c7d0dc';
+  ctx.beginPath();
+  ctx.arc(hx, y - s * 0.22, s * 0.17, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(hx, y + s * 0.3, s * 0.27, s * 0.22, 0, Math.PI, 0);
+  ctx.fill();
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#e7ecf2';
+  ctx.fillText(b.pop, cx + s * 0.6, y + s * 0.04);
+  ctx.textAlign = 'center';
 }
 
 const TERRAIN_COLORS: Record<number, string> = {
@@ -38,7 +114,7 @@ const TERRAIN_COLORS: Record<number, string> = {
   [TER_MOUNT]: '#8d8780',
 };
 
-export function MapView({ game, owner, myId, selected, onSelect, arrows, mode }: Props) {
+export function MapView({ game, owner, myId, selected, onSelect, arrows, mode, badges }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // touched — игрок сам двигал или масштабировал карту; до этого карта вписывается в окно при любом изменении размера
@@ -188,8 +264,12 @@ export function MapView({ game, owner, myId, selected, onSelect, arrows, mode }:
       ctx.strokeText(name, L.x, ly);
       ctx.fillStyle = c === myId ? '#ffe9a8' : '#f4f6f8';
       ctx.fillText(name, L.x, ly);
+      const bd = badges?.[c];
+      // Значки не мельче 9 px на экране, чтобы читались при любом масштабе
+      const bs = Math.max(fs * 0.5, 9 / v.k);
+      if (bd) drawBadge(ctx, bd, L.x, ly + fs * 0.55 + bs * 1.05, bs, px1);
     }
-  }, [arrows, capitals, fogPattern, game.countries, geom, mine, mode, myId, n, sel, terrain]);
+  }, [arrows, badges, capitals, fogPattern, game.countries, geom, mine, mode, myId, n, sel, terrain]);
 
   const drawRef = useRef(draw);
   drawRef.current = draw;
