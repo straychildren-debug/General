@@ -152,7 +152,7 @@ export function Spark({ values, width = 120, height = 28 }: { values: number[]; 
   );
 }
 
-const MOOD = [
+export const MOOD = [
   { color: '#e5534b', label: 'Вражда', curve: -3.2 },
   { color: '#f0883e', label: 'Неприязнь', curve: -1.6 },
   { color: '#e3b341', label: 'Нейтрально', curve: 0 },

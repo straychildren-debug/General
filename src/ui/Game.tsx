@@ -7,6 +7,7 @@ import { computeGeo } from '../core/geo';
 import { battleVisible } from '../core/intel';
 import type { BattleReport, GameState, Orders } from '../core/types';
 import { BattleReportView } from './BattleReportView';
+import { CountryCard } from './CountryCard';
 import { Swatch } from './common';
 import { OrdersPanel } from './OrdersPanel';
 import { DiplomacyPanel } from './DiplomacyPanel';
@@ -168,15 +169,24 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
     return () => clearTimeout(t);
   }, [chronPlay, chron, game.year]);
 
-  // Щелчок по соседу — сразу к нападению; по своей стране — к хозяйству; по остальным — сведения о стране
+  // Щелчок по своей стране — к приказам; по чужой — карточка страны на карте (разведка, отношения, поход)
+  const [card, setCard] = useState<number | null>(null);
   const onSelect = (id: number | null) => {
     setSelected(id);
-    if (id == null) return;
-    if (viewer != null && id === viewer) setTab('orders');
-    else if (viewer != null && myNbs.includes(id) && game.countries[id].alive) {
-      setAttackTarget(id);
+    if (id == null || viewer == null) {
+      setCard(null);
+      if (id != null) setTab('world');
+      return;
+    }
+    if (id === viewer) {
+      setCard(null);
       setTab('orders');
-    } else setTab('world');
+    } else setCard(id);
+  };
+  const openDiplomacy = (id: number) => {
+    setDipTarget(id);
+    setSelected(id);
+    setTab('diplomacy');
   };
   const onTarget = (id: number | null) => {
     setAttackTarget(id);
@@ -298,6 +308,22 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
               </button>
             </div>
           )}
+          {card != null && me && draft && card !== viewer && (
+            <CountryCard
+              key={card}
+              game={game}
+              geo={geo}
+              me={me}
+              draft={draft}
+              setDraft={setDraft}
+              id={card}
+              onClose={() => {
+                setCard(null);
+                setSelected(null);
+              }}
+              onDiplomacy={openDiplomacy}
+            />
+          )}
           <div className="legend">
             <span><i className="lg-arrow you" /> ваши приказы</span>
             <span><i className="lg-arrow won" /> победа</span>
@@ -344,11 +370,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
                 {...panelProps}
                 target={attackTarget}
                 onTarget={onTarget}
-                onDiplomacy={(id) => {
-                  setDipTarget(id);
-                  setSelected(id);
-                  setTab('diplomacy');
-                }}
+                onDiplomacy={openDiplomacy}
                 onTab={(t) => setTab(t as Tab)}
               />
             )}

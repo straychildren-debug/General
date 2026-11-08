@@ -1002,3 +1002,205 @@ button.op-tile:hover {
 .op-tile-main {
   font-size: clamp(16px, 1.3vw, 21px);
 }
+
+/* Ничего не должно менять высоту при движении ползунков — иначе панель «прыгает» */
+.side-scroll {
+  scrollbar-gutter: stable;
+}
+.op-preview {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: hidden;
+  height: 20px;
+  min-height: 0;
+  align-items: center;
+}
+.op-preview > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.op-sci-top {
+  white-space: nowrap;
+  height: 24px;
+  align-items: center;
+}
+.op-sci-top > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.op-tile-text,
+.op-tile-main,
+.op-sc-lvl {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* «Нанять» — обычного размера, в строке с процентами */
+.btn.op-hire {
+  align-self: auto;
+  flex: none;
+  padding: 3px 12px;
+  font-size: 12.5px;
+}
+
+/* ═════════ Карточка страны на карте ═════════ */
+.ccard {
+  --air: 8px;
+  position: absolute;
+  top: 52px;
+  right: 12px;
+  width: 340px;
+  max-height: calc(100% - 64px);
+  overflow-y: auto;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(20, 27, 35, 0.96);
+  border: 1px solid var(--line-2);
+  border-top: 4px solid var(--c);
+  border-radius: 14px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+}
+.ccard .slider {
+  margin: 4px 0;
+}
+.ccard-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ccard-name {
+  flex: 1;
+  font-size: 19px;
+  font-weight: 700;
+}
+.ccard-x {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 15px;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.ccard-x:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+.ccard-facts {
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.ccard-facts .icon {
+  color: var(--accent);
+}
+.ccard-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.ccard-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #d6dde6;
+}
+.ccard-h .icon {
+  color: var(--accent);
+}
+.ccard-h-note {
+  margin-left: auto;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+.ccard-intel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.ccard-stat {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 7px;
+  border-radius: 9px;
+  background: #0f151c;
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+.ccard-stat .icon {
+  color: var(--accent);
+}
+.ccard-stat > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+.ccard-stat b {
+  font-size: 16px;
+  white-space: nowrap;
+}
+.ccard-stat span {
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ccard-vs {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.op-vs.big {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--accent);
+}
+.ccard-unknown {
+  padding: 10px;
+  border-radius: 9px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  background: repeating-linear-gradient(135deg, rgba(58, 71, 89, 0.35) 0 6px, rgba(34, 44, 57, 0.35) 6px 12px);
+  border: 1px dashed var(--line-2);
+}
+.ccard-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ccard-rel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ccard-rel .mood {
+  margin: 0;
+}
+.ccard-rel > div {
+  flex: 1;
+}
+.ccard-honor {
+  font-size: 13px;
+}
+.ccard .op-attack {
+  margin-top: 0;
+}
