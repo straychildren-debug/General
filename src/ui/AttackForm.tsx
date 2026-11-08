@@ -81,6 +81,7 @@ export function AttackForm({
       </div>
       <Amount max={avail} value={army} onChange={setPick} />
       {treaty && <div className="warn-box">У нас договор — нападение будет предательством.</div>}
+      <div className="op-attack-foot">
       <div className="op-chance">
         {!intel.known ? (
           <>
@@ -119,6 +120,7 @@ export function AttackForm({
             Договориться
           </button>
         )}
+      </div>
       </div>
     </div>
   );

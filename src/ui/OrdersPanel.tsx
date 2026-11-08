@@ -226,8 +226,8 @@ function SciCard({
   return (
     <div className={'op-sc' + (n > 0 ? ' on' : '') + (enough ? ' done' : '')} title={`${s.name}. ${level + 1}-й уровень даст: ${next}`}>
       <div className="op-sc-head">
-        <Ring value={prog / cost} ghost={(prog + gain) / cost} tone={n > 0 ? 'gold' : 'muted'} size={36}>
-          <Icon name={SCIENCE_ICONS[i]} size={17} />
+        <Ring value={prog / cost} ghost={(prog + gain) / cost} tone={n > 0 ? 'gold' : 'muted'} size={32}>
+          <Icon name={SCIENCE_ICONS[i]} size={15} />
         </Ring>
         <span className="op-sc-title" title={yrs === null ? 'не изучается' : yrs <= 1 ? 'уровень откроют в этом году' : `уровень откроют через ${years(yrs)}`}>
           <span className="op-sc-name">{SCIENCE_SHORT[i]}</span>
@@ -498,99 +498,7 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
       )}
       {fc.moneyAfterPurchases < 0 && <div className="warn-box">Денег на весь найм не хватит — часть не выполнится.</div>}
 
-      <div className="op-grid">
-        <div className="op-col">
-          <Box icon="shield" title="Армия" right={<span className="op-count"><Icon name="people" size={14} /> {fmtShort(me.soldiers)}</span>}>
-            <Recruit
-              kind="soldier"
-              have={me.soldiers}
-              pop={pop}
-              max={maxS}
-              value={draft.hireSoldiers}
-              onChange={(v) => setDraft((o) => ({ ...o, hireSoldiers: v }))}
-              salary={B.soldierUpkeep}
-              pick={pickS}
-              setPick={setPickS}
-              arrive="придут к концу года"
-            />
-          </Box>
-
-          <Box icon="flag" title="Поход" className="op-campaign">
-            {inTruce ? (
-              <div className="op-truce">
-                <Ring value={(game.year - 1) / Math.max(1, truce)} tone="pos" size={54}>
-                  <b className="op-truce-n">{truce - game.year + 1}</b>
-                </Ring>
-                <div>
-                  <b>Мирное время</b>
-                  <div className="muted small">нападать нельзя никому ещё {years(truce - game.year + 1)} — копите силы</div>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className={'op-nbs' + (tgt != null ? ' compact' : '')}>
-                  {nbs.map((n) => {
-                    const it = intelOf.get(n)!;
-                    const w = strengthWord(it, me.soldiers);
-                    const c = game.countries[n];
-                    return (
-                      <button
-                        key={n}
-                        className={'op-nb ' + (tgt === n ? 'on' : '')}
-                        style={{ ['--c' as string]: c.color }}
-                        onClick={() => onTarget(tgt === n ? null : n)}
-                        title={it.known ? `армия ≈${fmtShort(it.soldiers)}` : 'Армия неизвестна — нужна разведка'}
-                      >
-                        <span className="op-nb-name">
-                          <Mood value={rel(game, n, me.id)} size={15} /> {c.name}
-                        </span>
-                        <span className={'op-nb-str ' + w.tone}>
-                          <Icon name={it.known ? 'shield' : 'eye'} size={13} /> {w.text}
-                          {treatyBetween(game, me.id, n) && <span className="muted"> · мир</span>}
-                        </span>
-                        <span className={'op-vs ' + (it.known ? w.tone : 'unknown')} title="Их армия против нашей (середина — поровну)">
-                          {it.known && <i style={{ width: (it.soldiers / Math.max(1, it.soldiers + me.soldiers)) * 100 + '%' }} />}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {tgt == null && campaigns.length === 0 && <div className="op-hint">Выберите соседа — здесь или на карте.</div>}
-                {tgt != null && (
-                  <div ref={formRef}>
-                    <AttackForm key={tgt} game={game} geo={geo} me={me} draft={draft} setDraft={setDraft} tgt={tgt} onSent={() => onTarget(null)} onDiplomacy={onDiplomacy} />
-                  </div>
-                )}
-              </>
-            )}
-            {campaigns.length > 0 && (
-              <div className="op-camps">
-                {campaigns.map((g) => {
-                  const t = taskOf(g);
-                  if (t.type !== 'attack') return null;
-                  const c = game.countries[t.target];
-                  const o = c?.alive ? battleOdds(game, geo, me.id, t.target, g, t.soldiers) : null;
-                  const known = estimate(game, me.id, t.target, true).known;
-                  return (
-                    <div className="op-camp" key={g.id} style={{ ['--c' as string]: c.color }}>
-                      <Icon name="swords" size={15} />
-                      <span>
-                        <b>{c.name}</b> · {fmtShort(t.soldiers)}
-                        {o && known && <span className={chanceWord(o.p).tone}> · шанс {chanceWord(o.p).text}</span>}
-                      </span>
-                      <button className="btn small ghost" onClick={() => cancel(g)}>
-                        Отменить
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Box>
-
-        </div>
-
-        <div className="op-col">
+      <div className="op-stack-col">
           <Box icon="flask" title="Наука" right={<span className="op-count"><Icon name="people" size={14} /> {fmtShort(sciTotal)}</span>}>
             <Recruit
               kind="scientist"
@@ -639,8 +547,92 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
             </div>
           </Box>
 
+          <Box icon="shield" title="Армия" right={<span className="op-count"><Icon name="people" size={14} /> {fmtShort(me.soldiers)}</span>}>
+            <Recruit
+              kind="soldier"
+              have={me.soldiers}
+              pop={pop}
+              max={maxS}
+              value={draft.hireSoldiers}
+              onChange={(v) => setDraft((o) => ({ ...o, hireSoldiers: v }))}
+              salary={B.soldierUpkeep}
+              pick={pickS}
+              setPick={setPickS}
+              arrive="придут к концу года"
+            />
+          </Box>
 
-        </div>
+          <Box icon="flag" title="Поход" className="op-campaign" right={!inTruce && tgt == null ? <span className="muted small">выберите цель — здесь или на карте</span> : undefined}>
+            {inTruce ? (
+              <div className="op-truce">
+                <Ring value={(game.year - 1) / Math.max(1, truce)} tone="pos" size={54}>
+                  <b className="op-truce-n">{truce - game.year + 1}</b>
+                </Ring>
+                <div>
+                  <b>Мирное время</b>
+                  <div className="muted small">нападать нельзя никому ещё {years(truce - game.year + 1)} — копите силы</div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className={'op-nbs' + (tgt != null ? ' compact' : '')}>
+                  {nbs.map((n) => {
+                    const it = intelOf.get(n)!;
+                    const w = strengthWord(it, me.soldiers);
+                    const c = game.countries[n];
+                    return (
+                      <button
+                        key={n}
+                        className={'op-nb ' + (tgt === n ? 'on' : '')}
+                        style={{ ['--c' as string]: c.color }}
+                        onClick={() => onTarget(tgt === n ? null : n)}
+                        title={it.known ? `армия ≈${fmtShort(it.soldiers)}` : 'Армия неизвестна — нужна разведка'}
+                      >
+                        <span className="op-nb-name">
+                          <Mood value={rel(game, n, me.id)} size={15} /> {c.name}
+                        </span>
+                        <span className={'op-nb-str ' + w.tone}>
+                          <Icon name={it.known ? 'shield' : 'eye'} size={13} /> {w.text}
+                          {treatyBetween(game, me.id, n) && <span className="muted"> · мир</span>}
+                        </span>
+                        <span className={'op-vs ' + (it.known ? w.tone : 'unknown')} title="Их армия против нашей (середина — поровну)">
+                          {it.known && <i style={{ width: (it.soldiers / Math.max(1, it.soldiers + me.soldiers)) * 100 + '%' }} />}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {tgt != null && (
+                  <div ref={formRef}>
+                    <AttackForm key={tgt} game={game} geo={geo} me={me} draft={draft} setDraft={setDraft} tgt={tgt} onSent={() => onTarget(null)} onDiplomacy={onDiplomacy} />
+                  </div>
+                )}
+              </>
+            )}
+            {campaigns.length > 0 && (
+              <div className="op-camps">
+                {campaigns.map((g) => {
+                  const t = taskOf(g);
+                  if (t.type !== 'attack') return null;
+                  const c = game.countries[t.target];
+                  const o = c?.alive ? battleOdds(game, geo, me.id, t.target, g, t.soldiers) : null;
+                  const known = estimate(game, me.id, t.target, true).known;
+                  return (
+                    <div className="op-camp" key={g.id} style={{ ['--c' as string]: c.color }}>
+                      <Icon name="swords" size={15} />
+                      <span>
+                        <b>{c.name}</b> · {fmtShort(t.soldiers)}
+                        {o && known && <span className={chanceWord(o.p).tone}> · шанс {chanceWord(o.p).text}</span>}
+                      </span>
+                      <button className="btn small ghost" onClick={() => cancel(g)}>
+                        Отменить
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Box>
       </div>
     </div>
   );

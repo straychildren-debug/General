@@ -945,12 +945,12 @@ button.op-tile:hover {
 /* На высоких экранах панель крупнее — меньше пустоты, легче читать */
 @media (min-height: 880px) {
   .panel-body.op {
-    zoom: 1.07;
+    zoom: 1;
   }
 }
 @media (min-height: 1000px) {
   .panel-body.op {
-    zoom: 1.15;
+    zoom: 1.05;
   }
 }
 
@@ -1595,4 +1595,183 @@ button.country-chip:hover {
 .news-overlay > .panel-body {
   overflow-y: auto;
   min-height: 0;
+}
+
+/* ───── Одна колонка: экономика → наука → армия → поход ───── */
+.op-stack-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--air);
+  min-width: 0;
+}
+.op-scs {
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+}
+.op-nbs {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+.op-stack-col .op-recruit .op-amount {
+  max-width: 520px;
+}
+
+/* Телефоны и узкие окна */
+@media (max-width: 900px) {
+  .side {
+    width: 100%;
+  }
+  .panel-body.op {
+    --air: 8px;
+    zoom: 1;
+  }
+}
+@media (max-width: 600px) {
+  .op-res {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .op-tile-main {
+    font-size: 19px;
+  }
+  .op-scs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ccard,
+  .news-overlay {
+    left: 8px;
+    right: 8px;
+    width: auto;
+  }
+}
+
+/* Выбор количества: в узком месте — две строки, в широком — одна */
+.op-box,
+.op-attack {
+  container-type: inline-size;
+}
+.op-amount {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'pcts action' 'slider slider';
+  column-gap: 6px;
+  align-items: center;
+}
+.op-amount .op-pcts {
+  grid-area: pcts;
+}
+.op-amount-slider {
+  grid-area: slider;
+  min-width: 0;
+}
+.op-amount-action {
+  grid-area: action;
+}
+.op-amount:not(:has(.op-amount-action)) {
+  grid-template-areas: 'pcts pcts' 'slider slider';
+}
+@container (min-width: 440px) {
+  .op-amount {
+    grid-template-columns: 210px minmax(0, 1fr) auto;
+    grid-template-areas: 'pcts slider action';
+    column-gap: 10px;
+  }
+  .op-amount:not(:has(.op-amount-action)) {
+    grid-template-columns: 210px minmax(0, 1fr);
+    grid-template-areas: 'pcts slider';
+  }
+  .op-stack-col .op-recruit .op-amount {
+    max-width: none;
+  }
+}
+
+/* Компактный поход на широкой панели */
+.op-nbs.compact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.op-nbs.compact .op-nb {
+  flex: none;
+  max-width: 170px;
+}
+.op-attack-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+@container (min-width: 440px) {
+  .op-attack-foot {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+  .op-attack-foot .op-chance {
+    flex: 1;
+    margin: 0;
+  }
+  .op-attack-foot .op-attack-buttons .btn.op-go {
+    flex: none;
+    padding: 6px 16px;
+  }
+}
+.op-confirm {
+  padding: 5px 10px;
+}
+.op-confirm .op-preview {
+  height: 18px;
+}
+
+/* Верхняя строка на телефоне — компактно, в две строки */
+@media (max-width: 600px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    padding: 6px 8px;
+  }
+  .topbar .logo,
+  .topbar .spacer,
+  .honor-chip .stat-label {
+    display: none;
+  }
+  .country-chip {
+    padding: 3px 8px;
+  }
+  .country-chip .cc-sub {
+    display: none;
+  }
+  .topbar .year {
+    font-size: 14px;
+  }
+  .topbar .stats {
+    order: 10;
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .topbar .stat {
+    padding: 0 4px;
+    border-left: none;
+  }
+  .topbar .stat-label {
+    font-size: 9.5px;
+  }
+  .topbar .stat-value {
+    font-size: 15px;
+  }
+  .topbar .stat-sub {
+    font-size: 10px;
+  }
+  .topbar .btn {
+    padding: 5px 10px;
+    font-size: 12.5px;
+  }
+  .topbar .btn.primary {
+    margin-left: auto;
+  }
+  .map-tools button {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+  .legend {
+    display: none;
+  }
 }

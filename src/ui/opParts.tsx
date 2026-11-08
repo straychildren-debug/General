@@ -45,9 +45,11 @@ export function Amount({ max, value, onChange, action }: { max: number; value: n
             {f * 100}%
           </button>
         ))}
-        {action}
       </div>
-      <Slider value={v} min={0} max={Math.max(1, max)} step={step} onChange={onChange} />
+      <div className="op-amount-slider">
+        <Slider value={v} min={0} max={Math.max(1, max)} step={step} onChange={onChange} />
+      </div>
+      {action && <div className="op-amount-action">{action}</div>}
     </div>
   );
 }
