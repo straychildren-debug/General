@@ -5,7 +5,8 @@ import { fmtShort, fmtSigned, pct } from '../core/format';
 import { defaultOrders } from '../core/game';
 import { computeGeo } from '../core/geo';
 import { battleVisible } from '../core/intel';
-import type { GameState, Orders } from '../core/types';
+import type { BattleReport, GameState, Orders } from '../core/types';
+import { BattleReportView } from './BattleReportView';
 import { Swatch } from './common';
 import { OrdersPanel } from './OrdersPanel';
 import { DiplomacyPanel } from './DiplomacyPanel';
@@ -43,6 +44,15 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
   const [drafts, setDrafts] = useState<Record<number, Orders>>(() => makeDrafts(initial));
   const [handoff, setHandoff] = useState(humans.length > 1);
   const [showReport, setShowReport] = useState(false);
+  // Донесения о сражениях: открываются сами после года, если страна игрока воевала
+  const [battleOpen, setBattleOpen] = useState<{ year: number; list: BattleReport[]; i: number } | null>(null);
+  const openReport = (g: GameState, v: number | null) => {
+    setShowReport(true);
+    const rep = g.reports[g.reports.length - 1];
+    const mine = rep && v != null ? rep.battles.filter((b) => b.attacker === v || b.defender === v) : [];
+    setBattleOpen(mine.length ? { year: rep.year, list: mine, i: 0 } : null);
+  };
+  const openBattle = (b: BattleReport, year: number) => setBattleOpen({ year, list: [b], i: 0 });
   const [tab, setTab] = useState<Tab>(viewer != null ? 'orders' : 'world');
   const [selected, setSelected] = useState<number | null>(null);
   const [attackTarget, setAttackTarget] = useState<number | null>(null);
@@ -134,7 +144,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
       setDrafts(makeDrafts(next));
       setTurnIdx(0);
       if (nextHumans.length > 1) setHandoff(true);
-      else if (nextHumans.length === 1) setShowReport(true);
+      else if (nextHumans.length === 1) openReport(next, nextHumans[0].id);
       saveGame(next);
       setBusy(false);
     }, 20);
@@ -370,7 +380,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
                     : undefined
                 }
               />
-            )}            {activeTab === 'news' && <NewsPanel game={game} viewer={viewer} nbs={myNbs} />}
+            )}            {activeTab === 'news' && <NewsPanel game={game} viewer={viewer} nbs={myNbs} onOpenBattle={openBattle} />}
           </div>
         </aside>
       </main>
@@ -393,7 +403,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
               className="btn primary wide"
               onClick={() => {
                 setHandoff(false);
-                if (game.reports.length) setShowReport(true);
+                if (game.reports.length) openReport(game, viewer);
               }}
             >
               Начать ход
@@ -426,11 +436,46 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
               </div>
             )}
             <div className="modal-scroll">
-              <YearView game={game} rep={lastRep} viewer={viewer} nbs={myNbs} />
+              <YearView game={game} rep={lastRep} viewer={viewer} nbs={myNbs} onOpenBattle={openBattle} />
             </div>
             <button className="btn primary wide" onClick={() => setShowReport(false)}>
               К делам
             </button>
+          </div>
+        </div>
+      )}
+
+      {battleOpen && !handoff && battleOpen.list[battleOpen.i] && (
+        <div className="modal-back" onClick={() => setBattleOpen(null)}>
+          <div className="modal battle-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-scroll">
+              <BattleReportView
+                key={battleOpen.year + ':' + battleOpen.i}
+                game={game}
+                b={battleOpen.list[battleOpen.i]}
+                viewer={viewer}
+                year={battleOpen.year}
+              />
+            </div>
+            <div className="battle-modal-foot">
+              <div className="battle-tabs">
+                {battleOpen.list.length > 1 &&
+                  battleOpen.list.map((b, k) => (
+                    <button key={k} className={'btn small ' + (k === battleOpen.i ? 'on' : '')} onClick={() => setBattleOpen({ ...battleOpen, i: k })}>
+                      {game.countries[b.attacker].name} → {game.countries[b.defender].name}
+                    </button>
+                  ))}
+              </div>
+              {battleOpen.i < battleOpen.list.length - 1 ? (
+                <button className="btn primary" onClick={() => setBattleOpen({ ...battleOpen, i: battleOpen.i + 1 })}>
+                  Следующее сражение →
+                </button>
+              ) : (
+                <button className="btn primary" onClick={() => setBattleOpen(null)}>
+                  {showReport ? 'К итогам года' : 'Закрыть'}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

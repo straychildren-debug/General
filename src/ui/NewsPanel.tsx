@@ -193,12 +193,14 @@ export function YearView({
   viewer,
   nbs,
   narrow,
+  onOpenBattle,
 }: {
   game: GameState;
   rep: YearReport;
   viewer: number | null;
   nbs: number[];
   narrow?: boolean;
+  onOpenBattle?: (b: BattleReport, year: number) => void;
 }) {
   const battles = rep.battles
     .filter((b) => battleVisible(viewer, nbs, b.attacker, b.defender))
@@ -238,6 +240,11 @@ export function YearView({
                   return (
                     <div key={'b' + k} className={'ev ' + (won ? 'good' : 'bad')}>
                       ⚔ {text}
+                      {onOpenBattle && (
+                        <button className="link ev-report" onClick={() => onOpenBattle(b, rep.year)}>
+                          донесение →
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -302,7 +309,16 @@ export function YearView({
           {viewer != null && <div className="hint">О войнах дальних стран вы узнаёте только по изменению границ.</div>}
         </Card>
         {selected && (
-          <Card title="Битва">
+          <Card
+            title="Битва"
+            right={
+              onOpenBattle && (viewer == null || selected.attacker === viewer || selected.defender === viewer) ? (
+                <button className="btn small primary" onClick={() => onOpenBattle(selected, rep.year)}>
+                  Полное донесение
+                </button>
+              ) : undefined
+            }
+          >
             <BattleDetail key={rep.year + ':' + sel} game={game} b={selected} viewer={viewer} />
           </Card>
         )}
@@ -311,7 +327,17 @@ export function YearView({
   );
 }
 
-export function NewsPanel({ game, viewer, nbs }: { game: GameState; viewer: number | null; nbs: number[] }) {
+export function NewsPanel({
+  game,
+  viewer,
+  nbs,
+  onOpenBattle,
+}: {
+  game: GameState;
+  viewer: number | null;
+  nbs: number[];
+  onOpenBattle?: (b: BattleReport, year: number) => void;
+}) {
   const [idx, setIdx] = useState<number | null>(null);
   const reps = game.reports;
   if (!reps.length) return <div className="panel-body muted">Пока ничего не произошло. Завершите первый год.</div>;
@@ -328,7 +354,7 @@ export function NewsPanel({ game, viewer, nbs }: { game: GameState; viewer: numb
           →
         </button>
       </div>
-      <YearView key={rep.year} game={game} rep={rep} viewer={viewer} nbs={nbs} narrow />
+      <YearView key={rep.year} game={game} rep={rep} viewer={viewer} nbs={nbs} narrow onOpenBattle={onOpenBattle} />
     </div>
   );
 }

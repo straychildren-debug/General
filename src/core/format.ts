@@ -4,12 +4,20 @@ export function fmt(n: number): string {
   return nf.format(Math.round(n));
 }
 
+const nf1 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 });
+const nf2 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
+
+/**
+ * Крупные числа в игре — в тысячах, без подписи «тыс.»:
+ * 474 000 → «474», 15 300 → «15,3», 2 785 → «2,8», 3 960 000 → «3 960».
+ */
 export function fmtShort(n: number): string {
-  const a = Math.abs(n);
-  if (a >= 1e9) return (n / 1e9).toFixed(a >= 1e10 ? 0 : 1).replace('.', ',') + ' млрд';
-  if (a >= 1e6) return (n / 1e6).toFixed(a >= 1e7 ? 1 : 2).replace('.', ',') + ' млн';
-  if (a >= 1e4) return (n / 1e3).toFixed(0) + ' тыс.';
-  return fmt(n);
+  const k = n / 1000;
+  const a = Math.abs(k);
+  if (a >= 100) return nf.format(Math.round(k));
+  if (a >= 1) return nf1.format(k);
+  if (a === 0) return '0';
+  return nf2.format(k) === '0' ? (k > 0 ? '<0,01' : '0') : nf2.format(k);
 }
 
 export function fmtSigned(n: number): string {

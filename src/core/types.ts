@@ -132,6 +132,11 @@ export interface BattleSide {
   gen: number; // множитель генерала
   exp: number | null; // опыт генерала (null — без генерала)
   morale: number;
+  /** Для донесения о бою (в старых сохранениях может не быть) */
+  age?: number; // возраст генерала
+  speed?: number; // скорость генерала
+  level?: number; // уровень военной мощи страны
+  expGain?: number; // опыт, полученный генералом в этом бою
 }
 
 export interface BattleDetails {
@@ -143,6 +148,8 @@ export interface BattleDetails {
     militia: number;
   };
   seed: number;
+  popTaken?: number; // жителей на захваченных землях
+  loot?: number; // добыча из взятой столицы
 }
 
 export interface GameEvent {

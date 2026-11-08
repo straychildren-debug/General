@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { B, battleLosses, captureAmount, maxRecruits, recruitCost, scoutPrice, type RecruitKind } from '../core/balance';
+import { B, battleLosses, captureAmount, genFactor, levelCost, maxRecruits, multAt, recruitCost, sciMult, scoutPrice, SCIENCE_INFO, type RecruitKind } from '../core/balance';
 import { battleOdds } from '../core/estimate';
-import { fmtShort, years } from '../core/format';
+import { fmtShort, fmtSigned, years } from '../core/format';
 import { estimate, type Intel } from '../core/intel';
-import type { General, GeneralTask } from '../core/types';
+import { S_DENS, S_MIL, S_SCI, type General, type GeneralTask } from '../core/types';
 import { autoTasks, pickAttacker } from './autoGenerals';
-import { ForecastCard } from './EconomyPanel';
-import { ScienceRows } from './SciencePanel';
-import { Card, Mood, Slider, Swatch, type PanelProps } from './common';
+import { Mood, Slider, type PanelProps } from './common';
+import { Icon, SCIENCE_ICONS, SCIENCE_SHORT, type IconName } from './icons';
 import { rel, treatyBetween } from '../core/diplomacy';
 
 interface Props extends PanelProps {
@@ -17,20 +16,68 @@ interface Props extends PanelProps {
   onTab: (tab: string) => void;
 }
 
+type Tone = 'pos' | 'warn' | 'neg' | 'muted';
+
+function Box({ icon, title, right, children, className }: { icon: IconName; title: string; right?: React.ReactNode; children: React.ReactNode; className?: string }) {
+  return (
+    <section className={'op-box ' + (className ?? '')}>
+      <header className="op-box-head">
+        <span className="op-box-title">
+          <Icon name={icon} size={17} /> {title}
+        </span>
+        {right && <span className="op-box-right">{right}</span>}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+/** Полоска с заливкой (0..1) и, по желанию, «призрачной» частью — прогнозом. */
+function Meter({ value, ghost, tone }: { value: number; ghost?: number; tone: Tone }) {
+  const v = Math.max(0, Math.min(1, value));
+  const g = Math.max(v, Math.min(1, ghost ?? v));
+  return (
+    <div className="op-meter">
+      {g > v && <div className={'op-meter-ghost ' + tone} style={{ width: g * 100 + '%' }} />}
+      <div className={'op-meter-fill ' + tone} style={{ width: v * 100 + '%' }} />
+    </div>
+  );
+}
+
+/** Кнопки 25% / 50% / 100% от максимума и ползунок для точного числа. */
+function Amount({ max, value, onChange }: { max: number; value: number; onChange: (v: number) => void }) {
+  const v = Math.max(0, Math.min(max, value));
+  const step = max > 100000 ? 1000 : 100;
+  const at = (f: number) => (f === 1 ? max : Math.floor((max * f) / step) * step);
+  return (
+    <div className="op-amount">
+      <div className="op-pcts">
+        {[0.25, 0.5, 1].map((f) => (
+          <button key={f} className={'op-pct ' + (v > 0 && v === at(f) ? 'on' : '')} onClick={() => onChange(at(f))} disabled={max <= 0}>
+            {f * 100}%
+          </button>
+        ))}
+      </div>
+      <Slider value={v} min={0} max={Math.max(1, max)} step={step} onChange={onChange} />
+    </div>
+  );
+}
+
 /**
- * Найм в два шага: выбрать количество (25/50/100% или ползунок) и нажать «Нанять».
- * После подтверждения видно, что именно куплено, — можно изменить или отменить.
+ * Найм в два шага: выбрать количество и нажать «Нанять». Пока ползунок двигается,
+ * сразу видно, сколько это стоит сейчас и сколько жалованья добавится каждый год.
  */
-function HireBox({
+function Recruit({
   kind,
   have,
   pop,
   max,
   value,
   onChange,
-  unit,
-  arrive,
   salary,
+  pick,
+  setPick,
+  arrive,
 }: {
   kind: RecruitKind;
   have: number;
@@ -38,18 +85,18 @@ function HireBox({
   max: number;
   value: number;
   onChange: (v: number) => void;
-  unit: string;
-  arrive: string;
   salary: number;
+  pick: number;
+  setPick: (v: number) => void;
+  arrive: string;
 }) {
-  const [pick, setPick] = useState(0);
   const [firing, setFiring] = useState(false);
   const [firePick, setFirePick] = useState(0);
   if (value < 0) {
     return (
-      <div className="hired fire">
+      <div className="op-confirm fire">
         <div>
-          <b className="neg">Увольняем {fmtShort(-value)}</b> {unit}
+          <b className="neg">Увольняем {fmtShort(-value)}</b>
           <div className="muted small">экономия {fmtShort(-value * salary)} в год</div>
         </div>
         <button className="btn small ghost" onClick={() => onChange(0)}>
@@ -62,35 +109,37 @@ function HireBox({
     const step = have > 100000 ? 1000 : 100;
     const n = Math.min(firePick, Math.floor(have));
     return (
-      <div className="amount">
+      <div className="op-recruit">
         <Slider value={n} min={0} max={Math.max(1, Math.floor(have))} step={step} onChange={setFirePick} />
-        <div className="amount-foot muted small">
-          <span>{n > 0 ? `уволить ${fmtShort(n)} — экономия ${fmtShort(n * salary)} в год` : 'сколько уволить'}</span>
-          <button className="link" onClick={() => setFiring(false)}>
+        <div className="op-preview">
+          <span>{n > 0 ? <>уволить <b>{fmtShort(n)}</b> · экономия {fmtShort(n * salary)} в год</> : 'Сколько уволить?'}</span>
+        </div>
+        <div className="op-recruit-actions">
+          <button className="btn small ghost" onClick={() => setFiring(false)}>
             ← к найму
           </button>
+          <button className="btn small" onClick={() => { setFiring(false); onChange(-n); }} disabled={n <= 0}>
+            Уволить
+          </button>
         </div>
-        <button className="btn small wide" onClick={() => { setFiring(false); onChange(-n); }} disabled={n <= 0}>
-          Уволить
-        </button>
       </div>
     );
   }
   if (value > 0) {
     return (
-      <div className="hired">
+      <div className="op-confirm">
         <div>
-          <b className="pos">✓ Нанимаем {fmtShort(value)}</b> {unit} за {fmtShort(recruitCost(kind, have, pop, value))}
-          <div className="muted small">{arrive}</div>
+          <b className="pos">✓ Нанимаем +{fmtShort(value)}</b>
+          <div className="op-preview">
+            <span className="op-cost">
+              <Icon name="coins" size={14} /> {fmtShort(recruitCost(kind, have, pop, value))} сразу
+            </span>
+            <span className="op-cost neg">−{fmtShort(value * salary)} в год</span>
+            <span className="muted">{arrive}</span>
+          </div>
         </div>
-        <span className="hired-buttons">
-          <button
-            className="btn small"
-            onClick={() => {
-              setPick(value);
-              onChange(0);
-            }}
-          >
+        <span className="op-confirm-buttons">
+          <button className="btn small" onClick={() => { setPick(value); onChange(0); }}>
             Изменить
           </button>
           <button className="btn small ghost" onClick={() => onChange(0)}>
@@ -102,16 +151,27 @@ function HireBox({
   }
   const n = Math.min(pick, max);
   return (
-    <>
-      <Amount
-        max={max}
-        value={n}
-        unit={unit}
-        onChange={setPick}
-        extra={n > 0 ? `за ${fmtShort(recruitCost(kind, have, pop, n))}` : undefined}
-        footRight={
+    <div className="op-recruit">
+      <div className="op-recruit-row">
+        <Amount max={max} value={n} onChange={setPick} />
+        <button className="btn primary op-hire" onClick={() => onChange(n)} disabled={n <= 0} title={n > 0 ? '' : 'Сначала выберите, сколько'}>
+          <Icon name="plus" size={16} /> Нанять
+        </button>
+      </div>
+      <div className="op-preview">
+        {n > 0 ? (
           <>
-            макс. {fmtShort(max)}
+            <span className="op-big">+{fmtShort(n)}</span>
+            <span className="op-cost" title="Заплатить сразу">
+              <Icon name="coins" size={14} /> {fmtShort(recruitCost(kind, have, pop, n))} сразу
+            </span>
+            <span className="op-cost neg" title="Жалованье каждый год">
+              −{fmtShort(n * salary)} в год
+            </span>
+          </>
+        ) : (
+          <span className="muted">
+            Сдвиньте ползунок — покажем цену. Можно до {fmtShort(max)}
             {have > 0 && (
               <>
                 {' · '}
@@ -120,74 +180,20 @@ function HireBox({
                 </button>
               </>
             )}
-          </>
-        }
-        action={
-          <button className="btn primary buy" onClick={() => onChange(n)} disabled={n <= 0} title={n > 0 ? '' : 'Сначала выберите, сколько'}>
-            Нанять
-          </button>
-        }
-      />
-    </>
-  );
-}
-
-/** Кнопки 25% / 50% / 100% от максимума и ползунок для точного числа. */
-function Amount({
-  max,
-  value,
-  onChange,
-  unit,
-  action,
-  extra,
-  footRight,
-}: {
-  max: number;
-  value: number;
-  onChange: (v: number) => void;
-  unit: string;
-  action?: React.ReactNode;
-  extra?: string;
-  footRight?: React.ReactNode;
-}) {
-  const v = Math.max(0, Math.min(max, value));
-  const step = max > 100000 ? 1000 : 100;
-  const at = (f: number) => (f === 1 ? max : Math.floor((max * f) / step) * step);
-  return (
-    <div className="amount">
-      <div className="choice">
-        {[0.25, 0.5, 1].map((f) => (
-          <button key={f} className={'btn ' + (v > 0 && v === at(f) ? 'on' : '')} onClick={() => onChange(at(f))} disabled={max <= 0}>
-            {f * 100}%
-          </button>
-        ))}
-        {action}
-      </div>
-      <Slider value={v} min={0} max={Math.max(1, max)} step={step} onChange={onChange} />
-      <div className="amount-foot muted small">
-        <span>
-          {v > 0 ? (
-            <>
-              <b className="amount-val">{fmtShort(v)}</b> {unit}
-              {extra && <> {extra}</>}
-            </>
-          ) : (
-            'нисколько'
-          )}
-        </span>
-        <span>{footRight ?? <>максимум {fmtShort(max)}</>}</span>
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
-/** Сила соседа словами: сравниваем его армию (по донесению разведки) с нашей. */
-function strengthWord(it: Intel, ours: number): { text: string; tone: 'pos' | 'warn' | 'neg' | 'muted' } {
-  if (!it.known) return { text: 'силы неизвестны', tone: 'muted' };
+/** Сила соседа: сравниваем его армию (по донесению разведки) с нашей. */
+function strengthWord(it: Intel, ours: number): { text: string; tone: Tone } {
+  if (!it.known) return { text: 'неизвестно', tone: 'muted' };
   const r = it.soldiers / Math.max(1, ours);
-  if (r < 0.75) return { text: 'слабее нас', tone: 'pos' };
+  if (r < 0.75) return { text: 'слабее', tone: 'pos' };
   if (r <= 1.33) return { text: 'как мы', tone: 'warn' };
-  return { text: 'сильнее нас', tone: 'neg' };
+  return { text: 'сильнее', tone: 'neg' };
 }
 
 function chanceWord(p: number): { text: string; tone: 'pos' | 'warn' | 'neg' } {
@@ -196,12 +202,35 @@ function chanceWord(p: number): { text: string; tone: 'pos' | 'warn' | 'neg' } {
   return { text: 'низкий', tone: 'neg' };
 }
 
-export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, target, onTarget, onDiplomacy, onTab }: Props) {
+/** Опыт генерала звёздами (0–5). */
+function stars(exp: number): number {
+  return Math.max(0, Math.min(5, Math.round(((genFactor(exp) - 0.6) / 1.6) * 5)));
+}
+
+function Stars({ exp }: { exp: number }) {
+  const n = stars(exp);
+  return (
+    <span className="op-stars" title={`опыт ${Math.round(exp)}`}>
+      {'★'.repeat(n)}
+      <span className="dim">{'★'.repeat(5 - n)}</span>
+    </span>
+  );
+}
+
+function initials(name: string): string {
+  return name
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2);
+}
+
+export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarget, onDiplomacy, onTab }: Props) {
   const pop = me.population;
   const truce = game.settings.truceYears ?? 0;
   const inTruce = game.year <= truce;
 
-  // ── Найм: варианты кнопками, как доля от возможного ──
+  // ── Найм ──
   const maxS = Math.max(
     0,
     Math.min(fc.staffRoom - Math.max(0, draft.hireScientists), maxRecruits('soldier', me.soldiers, pop, me.money - (fc.spend - fc.soldierCost))),
@@ -210,11 +239,29 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
     0,
     Math.min(fc.staffRoom - Math.max(0, draft.hireSoldiers), maxRecruits('scientist', me.scientists, pop, me.money - (fc.spend - fc.scientistCost))),
   );
+  // Выбранное ползунком, но ещё не нанятое — для предпросмотра расходов
+  const [pickS, setPickS] = useState(0);
+  const [pickSc, setPickSc] = useState(0);
+  const pendS = draft.hireSoldiers === 0 ? Math.min(pickS, maxS) : 0;
+  const pendSc = draft.hireScientists === 0 ? Math.min(pickSc, maxSc) : 0;
+  const pendSalary = pendS * B.soldierUpkeep + pendSc * B.sciUpkeep;
+  const pendCost = recruitCost('soldier', me.soldiers, pop, pendS) + recruitCost('scientist', me.scientists, pop, pendSc);
   const round100 = (x: number) => Math.floor(x / 100) * 100;
   const income = fc.taxes + fc.saleRevenue;
   const load = fc.upkeep / Math.max(1, income);
+  const loadAfter = (fc.upkeep + pendSalary) / Math.max(1, income);
   const trouble = fc.unfed > 0 || fc.unpaid > 0;
-  const loadTone = trouble || load > 0.95 ? 'neg' : load > 0.7 ? 'warn' : 'pos';
+  const toneOf = (x: number): Tone => (x > 0.95 ? 'neg' : x > 0.7 ? 'warn' : 'pos');
+  const loadTone: Tone = trouble ? 'neg' : toneOf(load);
+
+  // ── Прогноз ──
+  const dMoney = fc.moneyEnd - me.money;
+  const moneyAfterPick = fc.moneyEnd - pendCost - pendSalary;
+  const dPop = fc.popEnd - fc.population;
+  const atCap = me.population >= fc.maxPop * 0.995;
+  const willCap = !atCap && fc.popEnd >= fc.maxPop - 1;
+  const hungry = fc.unfed > 0;
+  const [moneyOpen, setMoneyOpen] = useState(false);
 
   // ── Поход ──
   const nbs = geo.neighbors[me.id].filter((n) => game.countries[n].alive);
@@ -228,11 +275,9 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
   const avail = Math.max(0, me.soldiers - sent);
   const tgt = target != null && nbs.includes(target) ? target : null;
   const gen = pickAttacker(me, draft.tasks);
-  // По умолчанию — половина армии, пока игрок не выбрал своё число для этой цели
   const [pick, setPick] = useState<{ t: number | null; v: number } | null>(null);
   const army = Math.min(avail, pick && pick.t === tgt ? pick.v : round100(avail * 0.5));
   const odds = tgt != null && gen && army > 0 ? battleOdds(game, geo, me.id, tgt, gen, army) : null;
-  // Сколько земли удастся занять при победе: решают перевес, скорость генерала и число уцелевших солдат
   const expectCells = (() => {
     if (!odds || tgt == null || !gen) return 0;
     const tc = game.countries[tgt];
@@ -243,8 +288,8 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
   useEffect(() => {
     if (tgt != null) formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [tgt]);
-  const words = new Map(nbs.map((n) => [n, strengthWord(estimate(game, me.id, n, true), me.soldiers)]));
-  const tgtIntel = tgt != null ? estimate(game, me.id, tgt, true) : null;
+  const intelOf = new Map(nbs.map((n) => [n, estimate(game, me.id, n, true)]));
+  const tgtIntel = tgt != null ? intelOf.get(tgt)! : null;
   const scoutPriceNow = scoutPrice(game.cellsPerCountry, game.year);
   const scoutDraft = draft.scout ?? { hire: false, target: me.scoutTarget ?? null };
   const hasScoutNow = me.hasScout || scoutDraft.hire;
@@ -269,272 +314,449 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, onSelect, targ
   const toggleBuy = (id: number) =>
     setDraft((o) => ({ ...o, buyOffers: o.buyOffers.includes(id) ? o.buyOffers.filter((x) => x !== id) : [...o.buyOffers, id] }));
 
+  // ── Наука ──
+  const sciTotal = Math.max(0, fc.scientists);
+  const ptsPer = B.ptsPerSci * sciMult(me, S_SCI);
+  const sciCount = (i: number) => Math.round((Math.max(0, draft.scienceAlloc[i]) / 100) * sciTotal);
+  const assigned = draft.scienceAlloc.reduce((a, _, i) => a + sciCount(i), 0);
+  const sciFree = Math.max(0, sciTotal - assigned);
+  const setSci = (i: number, n: number) =>
+    setDraft((o) => {
+      const mx = sciCount(i) + sciFree;
+      const v = Math.max(0, Math.min(mx, Math.round(n)));
+      const a = o.scienceAlloc.slice();
+      a[i] = sciTotal > 0 ? (v / sciTotal) * 100 : 0;
+      return { ...o, scienceAlloc: a };
+    });
+
   // ── Советник: одна главная подсказка на ход ──
   const advice = (() => {
     const offers = (game.offers ?? []).filter((d) => d.to === me.id && d.year === game.year && !draft.diplomacy?.accept?.includes(d.id));
     const ult = offers.find((d) => d.ultimatum);
-    if (ult) return { tone: 'neg', text: `Государство ${game.countries[ult.from].name} требует дань — иначе нападёт. Решите во вкладке «Дипломатия».`, tab: 'diplomacy' };
+    if (ult) return { tone: 'neg', text: `${game.countries[ult.from].name} требует дань — иначе нападёт.`, tab: 'diplomacy' };
     if (fc.unfed > 0) return { tone: 'neg', text: 'Будет голод: денег не хватит на зерно. Наймите меньше людей.' };
     if (fc.unpaid > 0) return { tone: 'neg', text: 'Казна не потянет жалованье — часть солдат разбежится. Наймите меньше.' };
     if (offers.length)
       return {
         tone: 'ok',
-        text: `Государство ${game.countries[offers[0].from].name} предлагает ${offers[0].kind === 'alliance' ? 'совместный поход' : 'мир'}${offers.length > 1 ? ' (и ещё ' + (offers.length - 1) + ')' : ''} — загляните в «Дипломатию».`,
+        text: `${game.countries[offers[0].from].name} предлагает ${offers[0].kind === 'alliance' ? 'совместный поход' : 'мир'}${offers.length > 1 ? ' (и ещё ' + (offers.length - 1) + ')' : ''}.`,
         tab: 'diplomacy',
       };
     if (generals.length === 0 && draft.buyOffers.length === 0)
       return { tone: 'warn', text: 'Без генерала армия не может наступать и плохо обороняется — купите генерала.' };
     if (campaigns.length > 0 && !generals.some((g) => taskOf(g).type === 'defend'))
-      return { tone: 'warn', text: 'Все генералы ушли в поход — оборону дома никто не возглавляет. Купите ещё генерала.' };
-    if (me.scientists === 0 && draft.hireScientists <= 0)
-      return { tone: 'warn', text: 'Учёных нет — наука стоит на месте. Наймите учёных в разделе «Наука».' };
-    if (pop >= fc.maxPop * 0.995 && !(draft.scienceAlloc[2] > 0.5))
+      return { tone: 'warn', text: 'Все генералы ушли в поход — оборону дома никто не возглавляет.' };
+    if (me.scientists === 0 && draft.hireScientists <= 0) return { tone: 'warn', text: 'Учёных нет — наука стоит на месте. Наймите учёных.' };
+    if (pop >= fc.maxPop * 0.995 && !(draft.scienceAlloc[S_DENS] > 0.5))
       return { tone: 'warn', text: 'Население упёрлось в предел земли. Изучайте «Плотность» — или завоюйте новые земли.' };
-    if (fc.popEnd >= fc.maxPop - 1 && !(draft.scienceAlloc[2] > 0.5))
-      return { tone: 'warn', text: 'В этом году население дойдёт до предела земли. Пора изучать «Плотность населения».' };
+    if (fc.popEnd >= fc.maxPop - 1 && !(draft.scienceAlloc[S_DENS] > 0.5))
+      return { tone: 'warn', text: 'В этом году население дойдёт до предела земли. Пора изучать «Плотность».' };
     if (inTruce) {
       const left = truce - game.year + 1;
       if (left <= 3) return { tone: 'warn', text: `Мир кончится через ${years(left)} — соседи уже вооружаются. Пора нанимать солдат.` };
-      return { tone: 'ok', text: `Мирное время (ещё ${years(left)}). Развивайте хозяйство и науку — большая армия пока не нужна.` };
+      return { tone: 'ok', text: `Мирное время (ещё ${years(left)}). Развивайте хозяйство и науку.` };
     }
-    if (!hasScoutNow && nbs.length)
-      return { tone: 'warn', text: 'Наймите разведчика (раздел «Генералы и разведка») — без него силы соседей неизвестны.' };
-    const strong = nbs.find((n) => {
-      const it = estimate(game, me.id, n, true);
-      return it.known && it.soldiers > me.soldiers * 1.6;
-    });
-    if (strong != null)
-      return { tone: 'warn', text: `${game.countries[strong].name} намного сильнее нас — держите армию дома и нанимайте солдат.` };
-    const weak = nbs.find((n) => {
-      const it = estimate(game, me.id, n, true);
-      return it.known && it.soldiers < me.soldiers * 0.6;
-    });
+    if (!hasScoutNow && nbs.length) return { tone: 'warn', text: 'Наймите разведчика — без него силы соседей неизвестны.' };
+    const strong = nbs.find((n) => intelOf.get(n)!.known && intelOf.get(n)!.soldiers > me.soldiers * 1.6);
+    if (strong != null) return { tone: 'warn', text: `${game.countries[strong].name} намного сильнее нас — держите армию дома.` };
+    const weak = nbs.find((n) => intelOf.get(n)!.known && intelOf.get(n)!.soldiers < me.soldiers * 0.6);
     if (weak != null && generals.length > 0 && campaigns.length === 0)
       return { tone: 'ok', text: `У государства ${game.countries[weak].name} мало войск — хороший момент для похода.` };
-    if (pop >= fc.maxPop * 0.995) return { tone: 'warn', text: 'Земли не хватает — население больше не растёт. Нужны новые земли.' };
+    if (pop >= fc.maxPop * 0.995) return { tone: 'warn', text: 'Земли не хватает — население больше не растёт.' };
     return { tone: 'ok', text: 'Всё спокойно. Копите силы и развивайте науку.' };
   })();
 
+  const food = hungry ? 'Голод!' : fc.grainCost > 0 ? 'Докупаем' : 'Хватает';
+  const foodTone: Tone = hungry ? 'neg' : fc.grainCost > 0 ? 'warn' : 'pos';
+  const total = Math.max(1, income);
+  const seg = (v: number) => Math.min(100, (v / total) * 100) + '%';
+
   return (
-    <div className="panel-body orders">
-      <div className={'advisor ' + advice.tone}>
-        <b>Советник:</b> {advice.text}
+    <div className="panel-body orders op">
+      <div className={'op-advisor ' + advice.tone}>
+        <Icon name="advisor" size={20} />
+        <span>{advice.text}</span>
         {'tab' in advice && advice.tab && (
-          <button className="link" onClick={() => onTab(advice.tab as string)}>
-            {' '}открыть →
+          <button className="btn small" onClick={() => onTab(advice.tab as string)}>
+            Открыть
           </button>
         )}
       </div>
-      <div className="orders-grid">
-      <div className="ocol">
-      <ForecastCard me={me} fc={fc} compact />
 
-      <Card title="Солдаты" right={<span className="muted">сейчас {fmtShort(me.soldiers)}</span>}>
-        <HireBox
-          kind="soldier"
-          have={me.soldiers}
-          pop={pop}
-          max={maxS}
-          value={draft.hireSoldiers}
-          unit="солдат"
-          salary={B.soldierUpkeep}
-          arrive="придут к концу года (в боях этого года не участвуют)"
-          onChange={(v) => setDraft((o) => ({ ...o, hireSoldiers: v }))}
-        />
-        <div className="load">
-          <div className="load-text">
-            Жалованье армии и учёных: <b className={loadTone}>{Math.round(load * 100)}% дохода</b>
+      <div className="op-res">
+        <button className={'op-tile ' + (moneyOpen ? 'on' : '')} onClick={() => setMoneyOpen(!moneyOpen)} title="Откуда деньги — нажмите">
+          <div className="op-tile-head">
+            <Icon name="coins" /> Казна
           </div>
-          <div className="load-bar">
-            <div className={'load-fill ' + loadTone} style={{ width: Math.min(100, load * 100) + '%' }} />
+          <div className="op-tile-main">{fmtShort(me.money)}</div>
+          <div className="op-tile-sub">
+            → {fmtShort(fc.moneyEnd)} <span className={dMoney >= 0 ? 'pos' : 'neg'}>{fmtSigned(dMoney)}</span>
+          </div>
+          {pendCost + pendSalary > 0 && <div className="op-tile-sub warn">с наймом → {fmtShort(moneyAfterPick)}</div>}
+        </button>
+        <div className="op-tile">
+          <div className="op-tile-head">
+            <Icon name="people" /> Народ
+          </div>
+          <div className="op-tile-main">{fmtShort(fc.population)}</div>
+          <Meter value={fc.population / Math.max(1, fc.maxPop)} ghost={fc.popEnd / Math.max(1, fc.maxPop)} tone={atCap || willCap ? 'warn' : 'pos'} />
+          <div className={'op-tile-sub ' + (atCap ? 'warn' : '')}>
+            {atCap ? 'упёрлись в предел' : <><span className={dPop >= 0 ? 'pos' : 'neg'}>{fmtSigned(dPop)}</span> · предел {fmtShort(fc.maxPop)}</>}
           </div>
         </div>
-      </Card>
+        <div className="op-tile">
+          <div className="op-tile-head">
+            <Icon name="wheat" /> Еда
+          </div>
+          <div className={'op-tile-main word ' + foodTone}>{food}</div>
+          <div className="op-tile-sub">
+            {hungry ? 'не хватит денег на зерно' : fc.grainCost > 0 ? `−${fmtShort(fc.grainCost)} на зерно` : `+${fmtShort(fc.saleRevenue)} от продажи`}
+          </div>
+        </div>
+        <div className="op-tile">
+          <div className="op-tile-head">
+            <Icon name="scales" /> Жалованье
+          </div>
+          <div className={'op-tile-main ' + loadTone}>
+            {Math.round(load * 100)}%{pendSalary > 0 && <span className={'op-after ' + toneOf(loadAfter)}> → {Math.round(loadAfter * 100)}%</span>}
+          </div>
+          <div className="op-stack" title="Какая часть дохода уходит на жалованье">
+            <div className="s-sol" style={{ width: seg(fc.upkeepSoldiers) }} />
+            <div className="s-sci" style={{ width: seg(fc.upkeepScientists) }} />
+            <div className="s-gen" style={{ width: seg(fc.upkeepGenerals) }} />
+            <div className="s-new" style={{ width: seg(pendSalary) }} />
+          </div>
+          <div className="op-tile-sub">от дохода</div>
+        </div>
+      </div>
 
-      <Card title="Поход">
-        {inTruce ? (
-          <div className="truce">Пока мир — нападать нельзя никому (до конца {truce}-го года).</div>
-        ) : (
-          <>
-            <div className="chips">
-              {nbs.map((n) => {
-                const w = words.get(n)!;
+      {moneyOpen && (
+        <div className="op-money">
+          <span className="pos">крестьяне +{fmtShort(fc.taxes)}</span>
+          {fc.saleRevenue > 0 && <span className="pos">зерно +{fmtShort(fc.saleRevenue)}</span>}
+          {fc.grainCost > 0 && <span className="neg">зерно −{fmtShort(fc.grainCost)}</span>}
+          <span className="neg"><i className="dot s-sol" />солдаты −{fmtShort(fc.upkeepSoldiers)}</span>
+          <span className="neg"><i className="dot s-sci" />учёные −{fmtShort(fc.upkeepScientists)}</span>
+          <span className="neg"><i className="dot s-gen" />генералы −{fmtShort(fc.upkeepGenerals)}</span>
+          {fc.tribIn > 0 && <span className="pos">дань нам +{fmtShort(fc.tribIn)}</span>}
+          {fc.tribOut > 0 && <span className="neg">дань −{fmtShort(fc.tribOut)}</span>}
+          {fc.dipOnce > 0 && <span className="neg">договоры −{fmtShort(fc.dipOnce)}</span>}
+          {fc.spend - fc.dipOnce > 0 && <span className="neg">найм −{fmtShort(fc.spend - fc.dipOnce)}</span>}
+          <span className="muted">· все числа в тысячах</span>
+        </div>
+      )}
+      {fc.moneyAfterPurchases < 0 && <div className="warn-box">Денег на весь найм не хватит — часть не выполнится.</div>}
+
+      <div className="op-grid">
+        <div className="op-col">
+          <Box icon="shield" title="Армия" right={<span className="op-count"><Icon name="people" size={14} /> {fmtShort(me.soldiers)}</span>}>
+            <Recruit
+              kind="soldier"
+              have={me.soldiers}
+              pop={pop}
+              max={maxS}
+              value={draft.hireSoldiers}
+              onChange={(v) => setDraft((o) => ({ ...o, hireSoldiers: v }))}
+              salary={B.soldierUpkeep}
+              pick={pickS}
+              setPick={setPickS}
+              arrive="придут к концу года"
+            />
+          </Box>
+
+          <Box icon="flag" title="Поход" className="op-campaign">
+            {inTruce ? (
+              <div className="op-truce">
+                <div>
+                  <b>Мирное время</b> — нападать нельзя никому ещё {years(truce - game.year + 1)}.
+                </div>
+                <Meter value={(game.year - 1) / Math.max(1, truce)} tone="pos" />
+              </div>
+            ) : (
+              <>
+                <div className="op-nbs">
+                  {nbs.map((n) => {
+                    const it = intelOf.get(n)!;
+                    const w = strengthWord(it, me.soldiers);
+                    const c = game.countries[n];
+                    return (
+                      <button
+                        key={n}
+                        className={'op-nb ' + (tgt === n ? 'on' : '')}
+                        style={{ ['--c' as string]: c.color }}
+                        onClick={() => onTarget(tgt === n ? null : n)}
+                        title={it.known ? `армия ≈${fmtShort(it.soldiers)}` : 'Армия неизвестна — нужна разведка'}
+                      >
+                        <span className="op-nb-name">
+                          <Mood value={rel(game, n, me.id)} size={15} /> {c.name}
+                        </span>
+                        <span className={'op-nb-str ' + w.tone}>
+                          <Icon name={it.known ? 'shield' : 'eye'} size={13} /> {w.text}
+                          {treatyBetween(game, me.id, n) && <span className="muted"> · мир</span>}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {tgt == null && campaigns.length === 0 && <div className="op-hint">Выберите соседа — здесь или на карте.</div>}
+                {tgt != null && (
+                  <div className="op-attack" ref={formRef}>
+                    {!gen ? (
+                      <div className="warn-box">Нет свободного генерала — купите генерала.</div>
+                    ) : (
+                      <>
+                        <div className="op-attack-head">
+                          <span>
+                            Ведёт <b>{gen.name}</b> <Stars exp={gen.exp} />
+                          </span>
+                          <span className="op-big">{fmtShort(army)}</span>
+                        </div>
+                        <Amount max={avail} value={army} onChange={(v) => setPick({ t: tgt, v })} />
+                        {treatyBetween(game, me.id, tgt) && <div className="warn-box">У нас договор — нападение будет предательством.</div>}
+                        <div className="op-chance">
+                          {tgtIntel && !tgtIntel.known ? (
+                            <>
+                              <span className="op-chance-label">
+                                Шанс: <b className="muted">?</b>
+                              </span>
+                              {hasScoutNow && scoutDraft.target === tgt ? (
+                                <span className="muted small">разведчик идёт туда</span>
+                              ) : (
+                                <button className="btn small" onClick={() => scoutIt(tgt)}>
+                                  <Icon name="eye" size={14} /> {hasScoutNow ? 'Разведать' : `Разведчик · ${fmtShort(scoutPriceNow)}`}
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            odds && (
+                              <>
+                                <span className="op-chance-label">
+                                  Шанс: <b className={chanceWord(odds.p).tone}>{chanceWord(odds.p).text}</b>
+                                </span>
+                                <Meter value={odds.p} tone={chanceWord(odds.p).tone} />
+                                <span className="muted small">
+                                  {expectCells > 0 ? `≈${expectCells} кл.` : ''}
+                                  {tgtIntel?.age ? ` · данные ${years(tgtIntel.age)} назад` : ''}
+                                </span>
+                              </>
+                            )
+                          )}
+                        </div>
+                        <div className="op-attack-buttons">
+                          <button className="btn primary op-go" onClick={send} disabled={army <= 0}>
+                            <Icon name="swords" size={16} /> {treatyBetween(game, me.id, tgt) ? 'Нарушить договор' : 'В поход!'}
+                          </button>
+                          <button className="btn" onClick={() => onDiplomacy(tgt)}>
+                            Договориться
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+            {campaigns.length > 0 && (
+              <div className="op-camps">
+                {campaigns.map((g) => {
+                  const t = taskOf(g);
+                  if (t.type !== 'attack') return null;
+                  const c = game.countries[t.target];
+                  const o = c?.alive ? battleOdds(game, geo, me.id, t.target, g, t.soldiers) : null;
+                  const known = estimate(game, me.id, t.target, true).known;
+                  return (
+                    <div className="op-camp" key={g.id} style={{ ['--c' as string]: c.color }}>
+                      <Icon name="swords" size={15} />
+                      <span>
+                        <b>{c.name}</b> · {fmtShort(t.soldiers)}
+                        {o && known && <span className={chanceWord(o.p).tone}> · шанс {chanceWord(o.p).text}</span>}
+                      </span>
+                      <button className="btn small ghost" onClick={() => cancel(g)}>
+                        Отменить
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Box>
+        </div>
+
+        <div className="op-col">
+          <Box icon="flask" title="Наука" right={<span className="op-count"><Icon name="people" size={14} /> {fmtShort(sciTotal)}</span>}>
+            <Recruit
+              kind="scientist"
+              have={me.scientists}
+              pop={pop}
+              max={maxSc}
+              value={draft.hireScientists}
+              onChange={(v) => setDraft((o) => ({ ...o, hireScientists: v }))}
+              salary={B.sciUpkeep}
+              pick={pickSc}
+              setPick={setPickSc}
+              arrive="начнут сразу"
+            />
+            <div className="op-sci-top">
+              {sciTotal === 0 ? (
+                <span className="muted">Наймите учёных — и раздайте их по наукам</span>
+              ) : sciFree > 0 ? (
+                <span className="warn">Без дела: {fmtShort(sciFree)} — раздайте ползунками</span>
+              ) : (
+                <span className="muted">Все учёные заняты</span>
+              )}
+              <span>
+                <button className="link" onClick={() => setDraft((o) => ({ ...o, scienceAlloc: o.scienceAlloc.map(() => 100 / o.scienceAlloc.length) }))}>
+                  поровну
+                </button>{' '}
+                <button className="link" onClick={() => setDraft((o) => ({ ...o, scienceAlloc: o.scienceAlloc.map(() => 0) }))}>
+                  снять всех
+                </button>
+              </span>
+            </div>
+            <div className="op-sci">
+              {SCIENCE_INFO.map((s, i) => {
+                const L = me.science.level[i];
+                const cost = levelCost(L, game.cellsPerCountry);
+                const prog = me.science.progress[i];
+                const left = Math.max(0, cost - prog);
+                const n = sciCount(i);
+                const gain = n * ptsPer;
+                const needFor1 = Math.ceil(left / ptsPer);
+                const yrs = n > 0 ? Math.ceil(left / gain) : null;
+                const next = i === S_MIL ? `атака +${(L + 1) * 10}%` : `${s.effect} +${Math.round((multAt(i, L + 1) - 1) * 100)}%`;
                 return (
-                  <button key={n} className={'chip ' + (tgt === n ? 'on' : '')} onClick={() => onTarget(tgt === n ? null : n)}>
-                    <Mood value={rel(game, n, me.id)} size={16} />
-                    {game.countries[n].name} · <span className={w.tone}>{w.text}</span>
-                    {treatyBetween(game, me.id, n) && <span className="muted"> · мир</span>}
-                  </button>
+                  <div className={'op-sci-row' + (n > 0 ? ' on' : '')} key={i} title={`${s.name}. Следующий уровень: ${next}`}>
+                    <span className="op-sci-icon">
+                      <Icon name={SCIENCE_ICONS[i]} size={17} />
+                    </span>
+                    <div className="op-sci-name">
+                      <div>
+                        {SCIENCE_SHORT[i]} <b className="op-lvl">{L}</b>
+                      </div>
+                      <Meter value={prog / cost} ghost={(prog + gain) / cost} tone="pos" />
+                    </div>
+                    <Slider value={n} min={0} max={Math.max(1, sciTotal)} step={100} onChange={(v) => setSci(i, v)} />
+                    <span
+                      className={'op-sci-when ' + (yrs === null ? 'muted' : yrs <= 1 ? 'pos' : '')}
+                      title={yrs === null ? 'не изучается' : yrs <= 1 ? 'уровень откроют в этом году' : `уровень откроют через ${years(yrs)}`}
+                    >
+                      {yrs === null ? '—' : `${Math.max(1, yrs)} г.`}
+                    </span>
+                    <button
+                      className="btn small op-1y"
+                      title={`Поставить столько учёных, чтобы открыть уровень за год (${fmtShort(needFor1)})`}
+                      onClick={() => setSci(i, needFor1)}
+                      disabled={sciTotal === 0 || (sciFree <= 0 && n >= needFor1)}
+                    >
+                      за год
+                    </button>
+                  </div>
                 );
               })}
             </div>
-            {tgt == null && <div className="hint">Выберите соседа или щёлкните по нему на карте.</div>}
-            {tgt != null && (
-              <div className="attack-form" ref={formRef}>
-                {!gen ? (
-                  <div className="warn-box">Нет свободного генерала — купите генерала ниже.</div>
-                ) : (
-                  <>
-                    <Amount max={avail} value={army} unit="солдат" extra={`· ведёт ${gen.name}`} onChange={(v) => setPick({ t: tgt, v })} />
-                    {treatyBetween(game, me.id, tgt) && (
-                      <div className="warn-box">У нас договор с этой страной — нападение будет предательством: честь упадёт, и с вами долго никто не будет договариваться.</div>
-                    )}
-                    <div className="attack-row">
-                      {tgtIntel && !tgtIntel.known ? (
-                        <span>
-                          Шанс: <b className="muted">неизвестен</b>{' '}
-                          {hasScoutNow && scoutDraft.target === tgt ? (
-                            <span className="muted small">разведчик идёт туда</span>
-                          ) : (
-                            <button className="link" onClick={() => scoutIt(tgt)}>
-                              {hasScoutNow ? 'разведать' : `нанять разведчика (${fmtShort(scoutPriceNow)})`}
-                            </button>
-                          )}
-                        </span>
-                      ) : odds && (
-                        <span>
-                          {tgtIntel?.age ? <span className="muted small">данные {years(tgtIntel.age)} назад · </span> : null}
-                          Шанс: <b className={chanceWord(odds.p).tone}>{chanceWord(odds.p).text}</b>
-                          {expectCells > 0 && <span className="muted small"> · займём ≈{expectCells} кл.</span>}
-                        </span>
-                      )}
-                      <button className="btn primary" onClick={send} disabled={army <= 0}>
-                        {treatyBetween(game, me.id, tgt) ? 'Нарушить договор и напасть' : 'В поход!'}
-                      </button>
-                      <button className="link" onClick={() => onDiplomacy(tgt)}>
-                        договориться
-                      </button>
-                    </div>                  </>
-                )}
-              </div>
-            )}
-          </>
-        )}
-        {campaigns.length > 0 && (
-          <div className="campaigns">
-            {campaigns.map((g) => {
-              const t = taskOf(g);
-              if (t.type !== 'attack') return null;
-              const c = game.countries[t.target];
-              const o = c?.alive ? battleOdds(game, geo, me.id, t.target, g, t.soldiers) : null;
-              return (
-                <div className="campaign" key={g.id}>
-                  <span>
-                    → <Swatch color={c.color} />
-                    <b>{c.name}</b>: {fmtShort(t.soldiers)} солдат
-                    {o && (
-                      <>
-                        , шанс <span className={chanceWord(o.p).tone}>{chanceWord(o.p).text}</span>
-                      </>
-                    )}
-                  </span>
-                  <button className="btn small ghost" onClick={() => cancel(g)}>
-                    Отменить
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
+          </Box>
 
-
-      </div>
-      <div className="ocol">
-      <Card title="Наука" right={<span className="muted">учёных {fmtShort(fc.scientists)}</span>}>
-        <HireBox
-          kind="scientist"
-          have={me.scientists}
-          pop={pop}
-          max={maxSc}
-          value={draft.hireScientists}
-          unit="учёных"
-          salary={B.sciUpkeep}
-          arrive="приступят к работе сразу"
-          onChange={(v) => setDraft((o) => ({ ...o, hireScientists: v }))}
-        />
-        <div className="sci-in-orders">
-          <ScienceRows game={game} geo={geo} me={me} draft={draft} setDraft={setDraft} fc={fc} onSelect={onSelect} compact />
-        </div>
-      </Card>
-
-      <Card title={`Генералы и разведка`} right={<button className="link" onClick={() => setBuying(!buying)}>{buying ? 'скрыть' : 'купить генерала'}</button>}>
-        <div className="glist">
-          {generals.map((g) => {
-            const t = taskOf(g);
-            const role = t.type === 'attack' ? `в походе на ${game.countries[t.target]?.name}` : t.type === 'defend' ? 'оборона' : 'учится';
-            return (
-              <div className="gline" key={g.id}>
-                <span>
-                  <b>{g.name}</b> <span className="muted small">{g.age} лет · опыт {Math.round(g.exp)}</span>
-                </span>
-                <span className="muted small">{role}</span>
-              </div>
-            );
-          })}
-          {generals.length === 0 && <div className="muted">Генералов нет.</div>}
-        </div>
-        <div className="scout-row">
-          {hasScoutNow ? (
-            <>
-              <span>Разведчик:</span>
-              <select value={scoutDraft.target ?? ''} onChange={(e) => setScout({ target: e.target.value === '' ? null : Number(e.target.value) })}>
-                <option value="">— никуда —</option>
-                {nbs.map((n) => {
-                  const it = estimate(game, me.id, n, true);
+          <Box
+            icon="crown"
+            title="Генералы"
+            right={
+              <button className={'btn small ' + (buying ? 'on' : '')} onClick={() => setBuying(!buying)}>
+                {buying ? 'Скрыть рынок' : '+ Купить'}
+              </button>
+            }
+          >
+            <div className="op-gens">
+              {generals.map((g) => {
+                const t = taskOf(g);
+                const role =
+                  t.type === 'attack'
+                    ? { icon: 'swords' as const, text: `поход: ${game.countries[t.target]?.name}`, cls: 'atk' }
+                    : t.type === 'defend'
+                      ? { icon: 'shield' as const, text: 'оборона', cls: 'def' }
+                      : { icon: 'bulb' as const, text: 'учится', cls: 'study' };
+                return (
+                  <div className={'op-gen ' + role.cls} key={g.id}>
+                    <span className="op-ava">{initials(g.name)}</span>
+                    <span className="op-gen-main">
+                      <b>{g.name}</b>
+                      <span className="muted small">
+                        {g.age} лет · <Stars exp={g.exp} />
+                      </span>
+                    </span>
+                    <span className="op-role">
+                      <Icon name={role.icon} size={13} /> {role.text}
+                    </span>
+                  </div>
+                );
+              })}
+              {generals.length === 0 && <div className="muted">Генералов нет — армия без командира воюет вполсилы.</div>}
+            </div>
+            {buying && (
+              <div className="op-market">
+                {me.offers.map((g) => {
+                  const on = draft.buyOffers.includes(g.id);
                   return (
-                    <option key={n} value={n}>
-                      {game.countries[n].name}
-                      {it.known ? ` (данные ${it.age ? years(it.age) + ' назад' : 'свежие'})` : ' (нет данных)'}
-                    </option>
+                    <div className={'op-offer' + (on ? ' on' : '')} key={g.id}>
+                      <span className="op-ava">{initials(g.name)}</span>
+                      <span className="op-gen-main">
+                        <b>{g.name}</b>
+                        <span className="muted small">
+                          {g.age} лет · <Stars exp={g.exp} /> · скорость {g.speed} · ум {g.intellect}
+                        </span>
+                      </span>
+                      <button className={on ? 'btn small on' : 'btn small'} onClick={() => toggleBuy(g.id)}>
+                        {on ? 'Покупаю ✓' : <><Icon name="coins" size={13} /> {fmtShort(g.price)}</>}
+                      </button>
+                    </div>
                   );
                 })}
-                <optgroup label="Дальние страны">
-                  {game.countries
-                    .filter((c) => c.alive && c.id !== me.id && !nbs.includes(c.id))
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                </optgroup>
-              </select>
-              {scoutDraft.hire && !me.hasScout && (
-                <button className="link muted" onClick={() => setScout({ hire: false })}>
-                  не нанимать ({fmtShort(scoutPriceNow)})
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              <span className="muted">Разведчика нет — силы соседей неизвестны.</span>
-              <button className="btn small" onClick={() => setScout({ hire: true })} disabled={me.money < scoutPriceNow}>
-                Нанять за {fmtShort(scoutPriceNow)}
-              </button>
-            </>
-          )}
-        </div>        {buying && (
-          <div className="glist" style={{ marginTop: 8 }}>
-            {me.offers.map((g) => {
-              const on = draft.buyOffers.includes(g.id);
-              return (
-                <div className={'grow' + (on ? ' chosen' : '')} key={g.id}>
-                  <div className="grow-main">
-                    <b>{g.name}</b>
-                    <div className="muted small">
-                      {g.age} лет · опыт {Math.round(g.exp)} · скорость {g.speed} · ум {g.intellect}
-                    </div>
-                  </div>
-                  <button className={on ? 'btn small on' : 'btn small'} onClick={() => toggleBuy(g.id)}>
-                    {on ? 'Покупаю ✓' : `Купить за ${fmtShort(g.price)}`}
+              </div>
+            )}
+            <div className="op-scout">
+              <span className="op-scout-icon">
+                <Icon name="eye" size={17} />
+              </span>
+              {hasScoutNow ? (
+                <>
+                  <span>Разведчик</span>
+                  <select value={scoutDraft.target ?? ''} onChange={(e) => setScout({ target: e.target.value === '' ? null : Number(e.target.value) })}>
+                    <option value="">— отдыхает —</option>
+                    {nbs.map((n) => {
+                      const it = intelOf.get(n)!;
+                      return (
+                        <option key={n} value={n}>
+                          {game.countries[n].name}
+                          {it.known ? ` (данные ${it.age ? years(it.age) + ' назад' : 'свежие'})` : ' (нет данных)'}
+                        </option>
+                      );
+                    })}
+                    <optgroup label="Дальние страны">
+                      {game.countries
+                        .filter((c) => c.alive && c.id !== me.id && !nbs.includes(c.id))
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                    </optgroup>
+                  </select>
+                  {scoutDraft.hire && !me.hasScout && (
+                    <button className="link muted" onClick={() => setScout({ hire: false })} title={`Не нанимать (${fmtShort(scoutPriceNow)})`}>
+                      ✕
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span className="muted">Разведчика нет — силы соседей неизвестны</span>
+                  <button className="btn small" onClick={() => setScout({ hire: true })} disabled={me.money < scoutPriceNow}>
+                    Нанять · <Icon name="coins" size={13} /> {fmtShort(scoutPriceNow)}
                   </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
-      </div>
+                </>
+              )}
+            </div>
+          </Box>
+        </div>
       </div>
     </div>
   );

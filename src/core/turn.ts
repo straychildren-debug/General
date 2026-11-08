@@ -29,6 +29,7 @@ import {
   S_MIL,
   type BattleReport,
   type Country,
+  type BattleSide,
   type GameState,
   type General,
   type GeneralTask,
@@ -284,8 +285,16 @@ function note(report: YearReport, c: Country, text: string, good: boolean | null
   if (c.controller === 'human') report.events.push({ country: c.id, text, good });
 }
 
-function side(c: Country, g: General | null, mil: number, gen: number) {
-  return { mil, gen, exp: g ? Math.round(g.exp) : null, morale: morale(c.happiness) };
+function side(c: Country, g: General | null, mil: number, gen: number): BattleSide {
+  return {
+    mil,
+    gen,
+    exp: g ? Math.round(g.exp) : null,
+    morale: morale(c.happiness),
+    age: g?.age,
+    speed: g?.speed,
+    level: c.science.level[S_MIL],
+  };
 }
 
 function removeGeneral(c: Country, g: General): void {
@@ -323,6 +332,8 @@ function fieldBattle(
   const loser = aWon ? b : a;
   const ew = gainExp(winner.gen, true, r);
   const el = gainExp(loser.gen, false, r);
+  sideA.expGain = aWon ? ew : el;
+  sideB.expGain = aWon ? el : ew;
   note(report, s.countries[winner.country], `Генерал ${winner.gen.name} набрал в бою ${ew.toFixed(1)} опыта`, true);
   note(report, s.countries[loser.country], `Генерал ${loser.gen.name} набрал в бою ${el.toFixed(1)} опыта`, true);
   s.countries[winner.country].happyMod += 2;
@@ -425,9 +436,11 @@ function siegeBattle(
   casualties(att, la);
   casualties(def, ld);
   const ea = gainExp(a.gen, attackerWon, r);
+  sideA.expGain = ea;
   note(report, att, `Генерал ${a.gen.name} набрал в бою ${ea.toFixed(1)} опыта`, true);
   if (dg) {
     const ed = gainExp(dg, !attackerWon, r);
+    sideD.expGain = ed;
     note(report, def, `Генерал ${dg.name} набрал в бою ${ed.toFixed(1)} опыта`, true);
   }
   const totalGarrison = def.soldiers + ld;
@@ -446,6 +459,8 @@ function siegeBattle(
   let cellsTaken = 0;
   let capitalTaken = false;
   let eliminated = false;
+  let popTaken = 0;
+  let loot = 0;
   if (attackerWon) {
     const before = def.cells;
     // a.soldiers здесь — уже уцелевшие после боя: они и занимают землю
@@ -453,6 +468,8 @@ function siegeBattle(
     const res = capture(s, rng, att, def, n);
     cellsTaken = res.taken;
     capitalTaken = res.capital;
+    popTaken = Math.round(res.people);
+    loot = Math.round(res.loot);
     def.happyMod -= 4 + (30 * cellsTaken) / Math.max(1, before);
     att.happyMod += 3;
     if (def.cells <= Math.max(3, Math.round(s.cellsPerCountry * B.elimFrac))) {
@@ -487,6 +504,8 @@ function siegeBattle(
         militia: Math.round(militia),
       },
       seed: battleSeed,
+      popTaken,
+      loot,
     },
     attackerWon,
     cellsTaken,
@@ -498,7 +517,7 @@ function siegeBattle(
 }
 
 /** Захват клеток: «клин» от случайной точки фронта вглубь территории защитника. */
-function capture(s: GameState, rng: Rng, att: Country, def: Country, n: number): { taken: number; capital: boolean } {
+function capture(s: GameState, rng: Rng, att: Country, def: Country, n: number): { taken: number; capital: boolean; people: number; loot: number } {
   const { w, h, owner } = s.map;
   const nb = neighborTable(w, h);
   const front: number[] = [];
@@ -512,7 +531,7 @@ function capture(s: GameState, rng: Rng, att: Country, def: Country, n: number):
       }
     }
   }
-  if (!front.length || n <= 0) return { taken: 0, capital: false };
+  if (!front.length || n <= 0) return { taken: 0, capital: false, people: 0, loot: 0 };
   const focus = rng.pick(front);
   const visited = new Uint8Array(owner.length);
   const queue = [focus];
@@ -547,14 +566,15 @@ function capture(s: GameState, rng: Rng, att: Country, def: Country, n: number):
   const g = def.grain * frac;
   def.grain -= g;
   att.grain += g * 0.5;
+  let loot = 0;
   if (capital) {
-    const loot = Math.max(0, def.money) * 0.25;
+    loot = Math.max(0, def.money) * 0.25;
     def.money -= loot;
     att.money += loot;
     def.happyMod -= 12;
     relocateCapital(s, def);
   }
-  return { taken: taken.length, capital };
+  return { taken: taken.length, capital, people: moved, loot };
 }
 
 function relocateCapital(s: GameState, c: Country): void {
