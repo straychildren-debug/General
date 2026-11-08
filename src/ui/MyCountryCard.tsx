@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { scoutPrice } from '../core/balance';
+import { B, scoutPrice } from '../core/balance';
+import { forecast } from '../core/econ';
 import { disgraced, honorOf, rel, treatyBetween } from '../core/diplomacy';
 import { battleOdds } from '../core/estimate';
 import { fmtShort, pct, years } from '../core/format';
 import type { Geo } from '../core/geo';
 import { estimate } from '../core/intel';
 import type { Country, GameState, General, GeneralTask, Orders } from '../core/types';
-import { autoTasks } from './autoGenerals';
+import { autoTasks, rosterOf } from './autoGenerals';
 import { Honor, Mood } from './common';
 import { Icon } from './icons';
 import { chanceWord, initials, Stars, strengthWord } from './opParts';
@@ -41,19 +42,31 @@ export function MyCountryCard({
       const tasks = { ...o.tasks, [g.id]: { type } as GeneralTask };
       // Новый командир обороны — прежний идёт учиться (обороной командует один)
       if (type === 'defend')
-        for (const x of me.generals) if (x.id !== g.id && (tasks[x.id] ?? x.task).type === 'defend') tasks[x.id] = { type: 'study' };
+        for (const x of rosterOf(me, o.dismissGenerals, o.buyOffers)) if (x.id !== g.id && (tasks[x.id] ?? x.task).type === 'defend') tasks[x.id] = { type: 'study' };
       return { ...o, tasks };
     });
   const cancelAttack = (g: General) =>
-    setDraft((o) => ({ ...o, tasks: autoTasks(me, { ...o.tasks, [g.id]: { type: 'study' } }, o.dismissGenerals) }));
+    setDraft((o) => ({ ...o, tasks: autoTasks(me, { ...o.tasks, [g.id]: { type: 'study' } }, o.dismissGenerals, o.buyOffers) }));
   const toggleDismiss = (g: General) =>
     setDraft((o) => {
       const on = o.dismissGenerals.includes(g.id);
       const dismissGenerals = on ? o.dismissGenerals.filter((x) => x !== g.id) : [...o.dismissGenerals, g.id];
-      return { ...o, dismissGenerals, tasks: autoTasks(me, { ...o.tasks, [g.id]: { type: 'study' } }, dismissGenerals) };
+      return { ...o, dismissGenerals, tasks: autoTasks(me, { ...o.tasks, [g.id]: { type: 'study' } }, dismissGenerals, o.buyOffers) };
     });
+  // Купленный генерал сразу в строю: ему можно дать задачу и отправить в поход в этом же году
   const toggleBuy = (id: number) =>
-    setDraft((o) => ({ ...o, buyOffers: o.buyOffers.includes(id) ? o.buyOffers.filter((x) => x !== id) : [...o.buyOffers, id] }));
+    setDraft((o) => {
+      const on = o.buyOffers.includes(id);
+      const buyOffers = on ? o.buyOffers.filter((x) => x !== id) : [...o.buyOffers, id];
+      const tasks = { ...o.tasks };
+      if (on) delete tasks[id];
+      return { ...o, buyOffers, tasks: autoTasks(me, tasks, o.dismissGenerals, buyOffers) };
+    });
+  const roster = rosterOf(me, [], draft.buyOffers);
+  const bought = (g: General) => draft.buyOffers.includes(g.id);
+  const full = roster.length - draft.dismissGenerals.length >= B.maxGenerals;
+  const fcNow = forecast(game, geo, me, draft);
+  const cash = me.money + fcNow.onceIn - fcNow.spend; // сколько осталось после уже выбранных покупок
   const [market, setMarket] = useState(me.generals.length === 0);
 
   const scoutDraft = draft.scout ?? { hire: false, target: me.scoutTarget ?? null };
@@ -112,14 +125,18 @@ export function MyCountryCard({
               </button>
             </div>
             <div className="mg-list">
-              {me.generals.map((g) => {
+              {roster.map((g) => {
                 const t = taskOf(g);
                 const off = dismissed(g);
+                const fresh = bought(g);
                 return (
                   <div className={'mg' + (off ? ' off' : '') + (t.type === 'attack' ? ' atk' : t.type === 'defend' ? ' def' : ' study')} key={g.id}>
                     <span className="op-ava">{initials(g.name)}</span>
                     <div className="mg-main">
-                      <b>{g.name}</b>
+                      <b>
+                        {g.name}
+                        {fresh && <span className="tag new-gen">куплен</span>}
+                      </b>
                       <span className="muted small">
                         {years(g.age)} · <Stars exp={g.exp} /> · скор. {g.speed} · ум {g.intellect}
                       </span>
@@ -143,18 +160,26 @@ export function MyCountryCard({
                         </span>
                       )}
                     </div>
-                    <button className="ccard-x mg-x" onClick={() => toggleDismiss(g)} title={off ? 'Не увольнять' : 'Уволить генерала'}>
-                      {off ? '↺' : '✕'}
-                    </button>
+                    {fresh ? (
+                      <button className="ccard-x mg-x" onClick={() => toggleBuy(g.id)} title="Отменить покупку — деньги вернутся">
+                        ↺
+                      </button>
+                    ) : (
+                      <button className="ccard-x mg-x" onClick={() => toggleDismiss(g)} title={off ? 'Не увольнять' : 'Уволить генерала'}>
+                        {off ? '↺' : '✕'}
+                      </button>
+                    )}
                   </div>
                 );
               })}
-              {me.generals.length === 0 && <div className="muted small">Генералов нет — без командира армия не наступает и обороняется вполсилы.</div>}
+              {roster.length === 0 && <div className="muted small">Генералов нет — без командира армия не наступает и обороняется вполсилы.</div>}
             </div>
             {market && (
               <div className="mg-list market">
-                {me.offers.map((g) => {
-                  const on = draft.buyOffers.includes(g.id);
+                {me.offers
+                  .filter((g) => !draft.buyOffers.includes(g.id))
+                  .map((g) => {
+                  const on = false;
                   return (
                     <div className={'mg' + (on ? ' buy' : '')} key={g.id}>
                       <span className="op-ava">{initials(g.name)}</span>
@@ -164,7 +189,12 @@ export function MyCountryCard({
                           {years(g.age)} · <Stars exp={g.exp} /> · скор. {g.speed} · ум {g.intellect}
                         </span>
                       </div>
-                      <button className={'btn small ' + (on ? 'on' : '')} onClick={() => toggleBuy(g.id)} disabled={!on && g.price > me.money}>
+                      <button
+                        className={'btn small ' + (on ? 'on' : '')}
+                        onClick={() => toggleBuy(g.id)}
+                        disabled={full || g.price > cash}
+                        title={full ? `Не больше ${B.maxGenerals} генералов` : g.price > cash ? 'Не хватает денег' : 'Купить — генерал сразу встанет в строй'}
+                      >
                         {on ? 'Покупаю ✓' : (
                           <>
                             <Icon name="coins" size={13} /> {fmtShort(g.price)}
@@ -174,7 +204,7 @@ export function MyCountryCard({
                     </div>
                   );
                 })}
-                <div className="muted small">Купленные генералы приступят к службе со следующего года.</div>
+                <div className="muted small">Купленный генерал сразу в строю: можно дать задачу и отправить в поход в этом же году.</div>
               </div>
             )}
           </section>
@@ -236,7 +266,7 @@ export function MyCountryCard({
                 const it = estimate(game, me.id, n, geo);
                 const w = strengthWord(it, me.soldiers);
                 const treaty = treatyBetween(game, me.id, n);
-                const going = me.generals.find((g) => {
+                const going = roster.find((g) => {
                   const t = taskOf(g);
                   return t.type === 'attack' && t.target === n && !dismissed(g);
                 });

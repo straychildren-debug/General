@@ -106,7 +106,8 @@ export function createGame(settings: GameSettings): GameState {
       science: {
         level: new Array(SCIENCE_COUNT).fill(0),
         progress: new Array(SCIENCE_COUNT).fill(0),
-        alloc: [40, 40, 0, 20, 0, 0],
+        // Людям учёных распределять самим; компьютер задаёт своё распределение каждый год
+        alloc: hIdx >= 0 ? [0, 0, 0, 0, 0, 0] : [40, 40, 0, 20, 0, 0],
       },
       generals: [],
       offers: [],

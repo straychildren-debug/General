@@ -12,7 +12,7 @@ import { MyCountryCard } from './MyCountryCard';
 import { Honor, MOOD, moodLevel, Swatch } from './common';
 import { disgraced, honorOf, rel } from '../core/diplomacy';
 import { OrdersPanel } from './OrdersPanel';
-import { autoTasks } from './autoGenerals';
+import { autoTasks, rosterOf } from './autoGenerals';
 import { attackArrow, centroids, ownerAtYear } from './mapGeometry';
 import { MapView, type Arrow, type MapBadge } from './MapView';
 import { warlike, WAR_COLORS } from './rulers';
@@ -118,7 +118,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
       }
     }
     if (me && draft) {
-      for (const g of me.generals) {
+      for (const g of rosterOf(me, draft.dismissGenerals, draft.buyOffers)) {
         const t = draft.tasks[g.id];
         if (t?.type !== 'attack') continue;
         const seg = attackArrow(game.map, owner, cents, me.id, t.target);

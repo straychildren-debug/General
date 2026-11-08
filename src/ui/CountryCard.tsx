@@ -7,7 +7,7 @@ import type { Geo } from '../core/geo';
 import { estimate, scoutReport } from '../core/intel';
 import { S_MIL, type Country, type GameState, type General, type Orders } from '../core/types';
 import { AttackForm } from './AttackForm';
-import { autoTasks } from './autoGenerals';
+import { autoTasks, rosterOf } from './autoGenerals';
 import { Honor, Mood, MOOD, moodLevel, Swatch } from './common';
 import { Icon } from './icons';
 import { chanceWord, Stars } from './opParts';
@@ -56,11 +56,11 @@ export function CountryCard({
     }));
   // Уже отданный приказ о походе на эту страну
   const taskOf = (g: General) => draft.tasks[g.id] ?? g.task;
-  const planned = me.generals.filter((g) => !draft.dismissGenerals.includes(g.id)).filter((g) => {
+  const planned = rosterOf(me, draft.dismissGenerals, draft.buyOffers).filter((g) => {
     const t = taskOf(g);
     return t.type === 'attack' && t.target === id;
   });
-  const cancel = (g: General) => setDraft((o) => ({ ...o, tasks: autoTasks(me, { ...o.tasks, [g.id]: { type: 'study' } }, o.dismissGenerals) }));
+  const cancel = (g: General) => setDraft((o) => ({ ...o, tasks: autoTasks(me, { ...o.tasks, [g.id]: { type: 'study' } }, o.dismissGenerals, o.buyOffers) }));
   const ruler = rulerOf(game, id);
   const war = warlike(game, id);
   const ratio = it.known ? it.soldiers / Math.max(1, it.soldiers + me.soldiers) : null;

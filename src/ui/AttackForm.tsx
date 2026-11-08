@@ -6,7 +6,7 @@ import { fmtShort, years } from '../core/format';
 import type { Geo } from '../core/geo';
 import { estimate } from '../core/intel';
 import type { Country, GameState, General, GeneralTask, Orders } from '../core/types';
-import { autoTasks, pickAttacker } from './autoGenerals';
+import { autoTasks, pickAttacker, rosterOf } from './autoGenerals';
 import { Icon } from './icons';
 import { Amount, chanceWord, initials, Meter, Stars } from './opParts';
 
@@ -33,7 +33,7 @@ export function AttackForm({
   onSent?: () => void;
   onDiplomacy?: (id: number) => void;
 }) {
-  const generals = me.generals.filter((g) => !draft.dismissGenerals.includes(g.id));
+  const generals = rosterOf(me, draft.dismissGenerals, draft.buyOffers);
   const taskOf = (g: General): GeneralTask => draft.tasks[g.id] ?? g.task;
   const sent = generals.reduce((a, g) => {
     const t = taskOf(g);
@@ -43,7 +43,7 @@ export function AttackForm({
   // Генерала выбирает игрок; по умолчанию — лучший из свободных (не командир обороны)
   const free = generals.filter((g) => taskOf(g).type !== 'attack');
   const [genId, setGenId] = useState<number | null>(null);
-  const gen = free.find((g) => g.id === genId) ?? pickAttacker(me, draft.tasks);
+  const gen = free.find((g) => g.id === genId) ?? pickAttacker(me, draft.tasks, generals);
   const [pick, setPick] = useState<number | null>(null);
   const army = Math.min(avail, pick ?? Math.floor((avail * 0.5) / 100) * 100);
   const odds = gen && army > 0 ? battleOdds(game, geo, me.id, tgt, gen, army) : null;
@@ -67,7 +67,7 @@ export function AttackForm({
     if (!gen || army <= 0) return;
     setDraft((o) => ({
       ...o,
-      tasks: autoTasks(me, { ...o.tasks, [gen.id]: { type: 'attack', target: tgt, soldiers: army } }, o.dismissGenerals),
+      tasks: autoTasks(me, { ...o.tasks, [gen.id]: { type: 'attack', target: tgt, soldiers: army } }, o.dismissGenerals, o.buyOffers),
     }));
     setPick(null);
     onSent?.();

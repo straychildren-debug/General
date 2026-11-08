@@ -5,7 +5,7 @@ import { forecast } from '../core/econ';
 import { fmtShort, fmtSigned, years } from '../core/format';
 import { estimate } from '../core/intel';
 import { S_DENS, S_MIL, S_SCI, type General, type GeneralTask } from '../core/types';
-import { autoTasks } from './autoGenerals';
+import { autoTasks, rosterOf } from './autoGenerals';
 import { AttackForm } from './AttackForm';
 import { Mood, Slider, type PanelProps } from './common';
 import { Icon, SCIENCE_ICONS, SCIENCE_SHORT } from './icons';
@@ -319,7 +319,7 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
 
   // ── Поход ──
   const nbs = geo.neighbors[me.id].filter((n) => game.countries[n].alive);
-  const generals = me.generals.filter((g) => !draft.dismissGenerals.includes(g.id));
+  const generals = rosterOf(me, draft.dismissGenerals, draft.buyOffers);
   const taskOf = (g: General): GeneralTask => draft.tasks[g.id] ?? g.task;
   const campaigns = generals.filter((g) => taskOf(g).type === 'attack');
   const tgt = target != null && nbs.includes(target) ? target : null;
@@ -332,7 +332,7 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
   const hasScoutNow = me.hasScout || scoutDraft.hire;
 
   const cancel = (g: General) =>
-    setDraft((o) => ({ ...o, tasks: autoTasks(me, { ...o.tasks, [g.id]: { type: 'study' } }, o.dismissGenerals) }));
+    setDraft((o) => ({ ...o, tasks: autoTasks(me, { ...o.tasks, [g.id]: { type: 'study' } }, o.dismissGenerals, o.buyOffers) }));
 
 
   // ── Наука ──
@@ -525,7 +525,16 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
               pop={pop}
               max={maxSc}
               value={draft.hireScientists}
-              onChange={(v) => setDraft((o) => ({ ...o, hireScientists: v }))}
+              onChange={(v) =>
+                setDraft((o) => {
+                  // Распределение хранится долями от всех учёных. Чтобы найм не раскидывал новичков
+                  // по наукам сам, пересчитываем доли так, что у каждой науки остаётся прежнее число учёных
+                  const oldT = Math.max(0, me.scientists + o.hireScientists);
+                  const newT = Math.max(0, me.scientists + v);
+                  const scienceAlloc = o.scienceAlloc.map((p) => (newT > 0 ? Math.min(100, ((Math.max(0, p) / 100) * oldT * 100) / newT) : 0));
+                  return { ...o, hireScientists: v, scienceAlloc };
+                })
+              }
               salary={B.sciUpkeep}
               pick={pickSc}
               setPick={setPickSc}
