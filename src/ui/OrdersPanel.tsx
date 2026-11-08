@@ -47,7 +47,7 @@ function Meter({ value, ghost, tone }: { value: number; ghost?: number; tone: To
 /** Кнопки 25% / 50% / 100% от максимума и ползунок для точного числа. */
 function Amount({ max, value, onChange }: { max: number; value: number; onChange: (v: number) => void }) {
   const v = Math.max(0, Math.min(max, value));
-  const step = max > 100000 ? 1000 : 100;
+  const step = max >= 20000 ? 1000 : 100;
   const at = (f: number) => (f === 1 ? max : Math.floor((max * f) / step) * step);
   return (
     <div className="op-amount">
@@ -106,7 +106,7 @@ function Recruit({
     );
   }
   if (firing) {
-    const step = have > 100000 ? 1000 : 100;
+    const step = have >= 20000 ? 1000 : 100;
     const n = Math.min(firePick, Math.floor(have));
     return (
       <div className="op-recruit">
@@ -223,6 +223,136 @@ function initials(name: string): string {
     .map((w) => w[0])
     .join('')
     .slice(0, 2);
+}
+
+/** Круговой индикатор (0..1) с иконкой в центре; «призрак» — прогноз на этот год. */
+function Ring({ value, ghost, tone, size = 44, children, title }: { value: number; ghost?: number; tone: Tone | 'gold'; size?: number; children: React.ReactNode; title?: string }) {
+  const r = size / 2 - 3;
+  const c = 2 * Math.PI * r;
+  const v = Math.max(0, Math.min(1, value));
+  const g = Math.max(v, Math.min(1, ghost ?? v));
+  const arc = (f: number) => `${(c * f).toFixed(1)} ${c.toFixed(1)}`;
+  return (
+    <span className={'op-ring ' + tone} style={{ width: size, height: size }} title={title}>
+      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
+        <circle className="op-ring-track" cx={size / 2} cy={size / 2} r={r} />
+        {g > v && <circle className="op-ring-ghost" cx={size / 2} cy={size / 2} r={r} strokeDasharray={arc(g)} transform={`rotate(-90 ${size / 2} ${size / 2})`} />}
+        {v > 0 && <circle className="op-ring-fill" cx={size / 2} cy={size / 2} r={r} strokeDasharray={arc(v)} transform={`rotate(-90 ${size / 2} ${size / 2})`} />}
+      </svg>
+      <span className="op-ring-in">{children}</span>
+    </span>
+  );
+}
+
+/** Плитка ресурса: значок в кольце + крупное число. */
+function Tile({
+  ring,
+  label,
+  main,
+  mainTone,
+  sub,
+  onClick,
+  on,
+  title,
+}: {
+  ring: React.ReactNode;
+  label: string;
+  main: React.ReactNode;
+  mainTone?: Tone;
+  sub: React.ReactNode;
+  onClick?: () => void;
+  on?: boolean;
+  title?: string;
+}) {
+  const body = (
+    <>
+      {ring}
+      <span className="op-tile-text">
+        <span className="op-tile-head">{label}</span>
+        <span className={'op-tile-main ' + (mainTone ?? '')}>{main}</span>
+        <span className="op-tile-sub">{sub}</span>
+      </span>
+    </>
+  );
+  return onClick ? (
+    <button className={'op-tile ' + (on ? 'on' : '')} onClick={onClick} title={title}>
+      {body}
+    </button>
+  ) : (
+    <div className="op-tile" title={title}>
+      {body}
+    </div>
+  );
+}
+
+/**
+ * Карточка науки: кольцо — сколько накоплено до следующего уровня (полосатое — сколько добавится
+ * в этом году); ползунок — сколько учёных отправлено, метка на нём — сколько нужно, чтобы открыть
+ * уровень за год.
+ */
+function SciCard({
+  i,
+  level,
+  prog,
+  cost,
+  n,
+  total,
+  ptsPer,
+  free,
+  onSet,
+}: {
+  i: number;
+  level: number;
+  prog: number;
+  cost: number;
+  n: number;
+  total: number;
+  ptsPer: number;
+  free: number;
+  onSet: (v: number) => void;
+}) {
+  const s = SCIENCE_INFO[i];
+  const left = Math.max(0, cost - prog);
+  const gain = n * ptsPer;
+  const need = Math.ceil(left / ptsPer);
+  const yrs = n > 0 ? Math.ceil(left / gain) : null;
+  const next = i === S_MIL ? `атака +${(level + 1) * 10}%` : `${s.effect} +${Math.round((multAt(i, level + 1) - 1) * 100)}%`;
+  const enough = n >= need && need > 0;
+  const mark = total > 0 ? Math.min(1, need / total) : 1;
+  const step = total >= 20000 ? 1000 : 100;
+  return (
+    <div className={'op-sc' + (n > 0 ? ' on' : '') + (enough ? ' done' : '')} title={`${s.name}. ${level + 1}-й уровень даст: ${next}`}>
+      <div className="op-sc-head">
+        <Ring value={prog / cost} ghost={(prog + gain) / cost} tone={n > 0 ? 'gold' : 'muted'} size={36}>
+          <Icon name={SCIENCE_ICONS[i]} size={17} />
+        </Ring>
+        <span className="op-sc-title" title={yrs === null ? 'не изучается' : yrs <= 1 ? 'уровень откроют в этом году' : `уровень откроют через ${years(yrs)}`}>
+          <span className="op-sc-name">{SCIENCE_SHORT[i]}</span>
+          <span className="op-sc-lvl">
+            ур. <b>{level}</b>
+            {yrs !== null && (yrs <= 1 ? <span className="soon"> → {level + 1}</span> : <span className="eta"> · {yrs} г.</span>)}
+          </span>
+        </span>
+      </div>
+      <div className="op-sc-row">
+        <div className="op-sc-slider">
+          <Slider value={n} min={0} max={Math.max(1, total)} step={step} onChange={onSet} />
+          {total > 0 && <i className={'op-mark' + (need > total ? ' over' : '')} style={{ left: `calc(${mark * 100}% - ${mark * 16 - 8}px)` }} />}
+        </div>
+        <span className="op-sc-count" title="Учёных отправлено / нужно, чтобы открыть уровень за год">
+          <b>{fmtShort(n)}</b>/
+          <button
+            className="op-sc-need"
+            onClick={() => onSet(need)}
+            disabled={total === 0 || n === need || (free <= 0 && n >= need)}
+            title={`Отправить ${fmtShort(need)} — уровень откроют в этом году`}
+          >
+            {fmtShort(need)}
+          </button>
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarget, onDiplomacy, onTab }: Props) {
@@ -384,50 +514,72 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
       </div>
 
       <div className="op-res">
-        <button className={'op-tile ' + (moneyOpen ? 'on' : '')} onClick={() => setMoneyOpen(!moneyOpen)} title="Откуда деньги — нажмите">
-          <div className="op-tile-head">
-            <Icon name="coins" /> Казна
-          </div>
-          <div className="op-tile-main">{fmtShort(me.money)}</div>
-          <div className="op-tile-sub">
-            → {fmtShort(fc.moneyEnd)} <span className={dMoney >= 0 ? 'pos' : 'neg'}>{fmtSigned(dMoney)}</span>
-          </div>
-          {pendCost + pendSalary > 0 && <div className="op-tile-sub warn">с наймом → {fmtShort(moneyAfterPick)}</div>}
-        </button>
-        <div className="op-tile">
-          <div className="op-tile-head">
-            <Icon name="people" /> Народ
-          </div>
-          <div className="op-tile-main">{fmtShort(fc.population)}</div>
-          <Meter value={fc.population / Math.max(1, fc.maxPop)} ghost={fc.popEnd / Math.max(1, fc.maxPop)} tone={atCap || willCap ? 'warn' : 'pos'} />
-          <div className={'op-tile-sub ' + (atCap ? 'warn' : '')}>
-            {atCap ? 'упёрлись в предел' : <><span className={dPop >= 0 ? 'pos' : 'neg'}>{fmtSigned(dPop)}</span> · предел {fmtShort(fc.maxPop)}</>}
-          </div>
-        </div>
-        <div className="op-tile">
-          <div className="op-tile-head">
-            <Icon name="wheat" /> Еда
-          </div>
-          <div className={'op-tile-main word ' + foodTone}>{food}</div>
-          <div className="op-tile-sub">
-            {hungry ? 'не хватит денег на зерно' : fc.grainCost > 0 ? `−${fmtShort(fc.grainCost)} на зерно` : `+${fmtShort(fc.saleRevenue)} от продажи`}
-          </div>
-        </div>
-        <div className="op-tile">
-          <div className="op-tile-head">
-            <Icon name="scales" /> Жалованье
-          </div>
-          <div className={'op-tile-main ' + loadTone}>
-            {Math.round(load * 100)}%{pendSalary > 0 && <span className={'op-after ' + toneOf(loadAfter)}> → {Math.round(loadAfter * 100)}%</span>}
-          </div>
-          <div className="op-stack" title="Какая часть дохода уходит на жалованье">
-            <div className="s-sol" style={{ width: seg(fc.upkeepSoldiers) }} />
-            <div className="s-sci" style={{ width: seg(fc.upkeepScientists) }} />
-            <div className="s-gen" style={{ width: seg(fc.upkeepGenerals) }} />
-            <div className="s-new" style={{ width: seg(pendSalary) }} />
-          </div>
-          <div className="op-tile-sub">от дохода</div>
-        </div>
+        <Tile
+          ring={
+            <Ring value={1} tone="gold">
+              <Icon name="coins" size={20} />
+            </Ring>
+          }
+          label="Казна"
+          main={fmtShort(me.money)}
+          sub={
+            pendCost + pendSalary > 0 ? (
+              <span className="warn">с наймом → {fmtShort(moneyAfterPick)}</span>
+            ) : (
+              <>
+                → {fmtShort(fc.moneyEnd)} <span className={dMoney >= 0 ? 'pos' : 'neg'}>{fmtSigned(dMoney)}</span>
+              </>
+            )
+          }
+          onClick={() => setMoneyOpen(!moneyOpen)}
+          on={moneyOpen}
+          title="Откуда деньги — нажмите"
+        />
+        <Tile
+          ring={
+            <Ring value={fc.population / Math.max(1, fc.maxPop)} ghost={fc.popEnd / Math.max(1, fc.maxPop)} tone={atCap || willCap ? 'warn' : 'pos'}>
+              <Icon name="people" size={20} />
+            </Ring>
+          }
+          label="Народ"
+          main={fmtShort(fc.population)}
+          sub={atCap ? <span className="warn">предел {fmtShort(fc.maxPop)}</span> : <><span className={dPop >= 0 ? 'pos' : 'neg'}>{fmtSigned(dPop)}</span> из {fmtShort(fc.maxPop)}</>}
+          title={`Население и предел земли (${fmtShort(fc.maxPop)}). Поднять предел — наука «Плотность» или новые земли.`}
+        />
+        <Tile
+          ring={
+            <Ring value={1} tone={foodTone}>
+              <Icon name="wheat" size={20} />
+            </Ring>
+          }
+          label="Еда"
+          main={food}
+          mainTone={foodTone}
+          sub={hungry ? 'нет денег на зерно' : fc.grainCost > 0 ? `−${fmtShort(fc.grainCost)} на зерно` : `+${fmtShort(fc.saleRevenue)} продажа`}
+        />
+        <Tile
+          ring={
+            <Ring value={load} ghost={loadAfter} tone={pendSalary > 0 ? toneOf(loadAfter) : loadTone}>
+              <Icon name="scales" size={20} />
+            </Ring>
+          }
+          label="Жалованье"
+          main={
+            <>
+              {Math.round(load * 100)}%{pendSalary > 0 && <span className={'op-after ' + toneOf(loadAfter)}>→{Math.round(loadAfter * 100)}%</span>}
+            </>
+          }
+          mainTone={loadTone}
+          sub={
+            <span className="op-stack" title="Солдаты · учёные · генералы">
+              <i className="s-sol" style={{ width: seg(fc.upkeepSoldiers) }} />
+              <i className="s-sci" style={{ width: seg(fc.upkeepScientists) }} />
+              <i className="s-gen" style={{ width: seg(fc.upkeepGenerals) }} />
+              <i className="s-new" style={{ width: seg(pendSalary) }} />
+            </span>
+          }
+          title="Какая часть дохода уходит на жалованье: солдатам, учёным, генералам"
+        />
       </div>
 
       {moneyOpen && (
@@ -467,14 +619,17 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
           <Box icon="flag" title="Поход" className="op-campaign">
             {inTruce ? (
               <div className="op-truce">
+                <Ring value={(game.year - 1) / Math.max(1, truce)} tone="pos" size={54}>
+                  <b className="op-truce-n">{truce - game.year + 1}</b>
+                </Ring>
                 <div>
-                  <b>Мирное время</b> — нападать нельзя никому ещё {years(truce - game.year + 1)}.
+                  <b>Мирное время</b>
+                  <div className="muted small">нападать нельзя никому ещё {years(truce - game.year + 1)} — копите силы</div>
                 </div>
-                <Meter value={(game.year - 1) / Math.max(1, truce)} tone="pos" />
               </div>
             ) : (
               <>
-                <div className="op-nbs">
+                <div className={'op-nbs' + (tgt != null ? ' compact' : '')}>
                   {nbs.map((n) => {
                     const it = intelOf.get(n)!;
                     const w = strengthWord(it, me.soldiers);
@@ -493,6 +648,9 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
                         <span className={'op-nb-str ' + w.tone}>
                           <Icon name={it.known ? 'shield' : 'eye'} size={13} /> {w.text}
                           {treatyBetween(game, me.id, n) && <span className="muted"> · мир</span>}
+                        </span>
+                        <span className={'op-vs ' + (it.known ? w.tone : 'unknown')} title="Их армия против нашей (середина — поровну)">
+                          {it.known && <i style={{ width: (it.soldiers / Math.max(1, it.soldiers + me.soldiers)) * 100 + '%' }} />}
                         </span>
                       </button>
                     );
@@ -580,6 +738,7 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
               </div>
             )}
           </Box>
+
         </div>
 
         <div className="op-col">
@@ -613,48 +772,24 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
                 </button>
               </span>
             </div>
-            <div className="op-sci">
-              {SCIENCE_INFO.map((s, i) => {
-                const L = me.science.level[i];
-                const cost = levelCost(L, game.cellsPerCountry);
-                const prog = me.science.progress[i];
-                const left = Math.max(0, cost - prog);
-                const n = sciCount(i);
-                const gain = n * ptsPer;
-                const needFor1 = Math.ceil(left / ptsPer);
-                const yrs = n > 0 ? Math.ceil(left / gain) : null;
-                const next = i === S_MIL ? `атака +${(L + 1) * 10}%` : `${s.effect} +${Math.round((multAt(i, L + 1) - 1) * 100)}%`;
-                return (
-                  <div className={'op-sci-row' + (n > 0 ? ' on' : '')} key={i} title={`${s.name}. Следующий уровень: ${next}`}>
-                    <span className="op-sci-icon">
-                      <Icon name={SCIENCE_ICONS[i]} size={17} />
-                    </span>
-                    <div className="op-sci-name">
-                      <div>
-                        {SCIENCE_SHORT[i]} <b className="op-lvl">{L}</b>
-                      </div>
-                      <Meter value={prog / cost} ghost={(prog + gain) / cost} tone="pos" />
-                    </div>
-                    <Slider value={n} min={0} max={Math.max(1, sciTotal)} step={100} onChange={(v) => setSci(i, v)} />
-                    <span
-                      className={'op-sci-when ' + (yrs === null ? 'muted' : yrs <= 1 ? 'pos' : '')}
-                      title={yrs === null ? 'не изучается' : yrs <= 1 ? 'уровень откроют в этом году' : `уровень откроют через ${years(yrs)}`}
-                    >
-                      {yrs === null ? '—' : `${Math.max(1, yrs)} г.`}
-                    </span>
-                    <button
-                      className="btn small op-1y"
-                      title={`Поставить столько учёных, чтобы открыть уровень за год (${fmtShort(needFor1)})`}
-                      onClick={() => setSci(i, needFor1)}
-                      disabled={sciTotal === 0 || (sciFree <= 0 && n >= needFor1)}
-                    >
-                      за год
-                    </button>
-                  </div>
-                );
-              })}
+            <div className="op-scs">
+              {SCIENCE_INFO.map((_, i) => (
+                <SciCard
+                  key={i}
+                  i={i}
+                  level={me.science.level[i]}
+                  prog={me.science.progress[i]}
+                  cost={levelCost(me.science.level[i], game.cellsPerCountry)}
+                  n={sciCount(i)}
+                  total={sciTotal}
+                  ptsPer={ptsPer}
+                  free={sciFree}
+                  onSet={(v) => setSci(i, v)}
+                />
+              ))}
             </div>
           </Box>
+
 
           <Box
             icon="crown"
@@ -676,11 +811,16 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
                       : { icon: 'bulb' as const, text: 'учится', cls: 'study' };
                 return (
                   <div className={'op-gen ' + role.cls} key={g.id}>
-                    <span className="op-ava">{initials(g.name)}</span>
+                    <span className="op-ava">
+                      {initials(g.name)}
+                      <span className="op-ava-badge">
+                        <Icon name={role.icon} size={10} />
+                      </span>
+                    </span>
                     <span className="op-gen-main">
                       <b>{g.name}</b>
                       <span className="muted small">
-                        {g.age} лет · <Stars exp={g.exp} />
+                        {years(g.age)} · <Stars exp={g.exp} />
                       </span>
                     </span>
                     <span className="op-role">
@@ -701,7 +841,7 @@ export function OrdersPanel({ game, geo, me, draft, setDraft, fc, target, onTarg
                       <span className="op-gen-main">
                         <b>{g.name}</b>
                         <span className="muted small">
-                          {g.age} лет · <Stars exp={g.exp} /> · скорость {g.speed} · ум {g.intellect}
+                          {years(g.age)} · <Stars exp={g.exp} /> · скорость {g.speed} · ум {g.intellect}
                         </span>
                       </span>
                       <button className={on ? 'btn small on' : 'btn small'} onClick={() => toggleBuy(g.id)}>
